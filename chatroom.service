@@ -1,0 +1,21 @@
+[Unit]
+Description=Lightweight Chatroom
+After=network.target
+
+[Service]
+Type=simple
+User=chatroom
+WorkingDirectory=/opt/chatroom
+ExecStart=/opt/chatroom/chatroom
+Restart=always
+RestartSec=5
+Environment="PORT=8080"
+Environment="CHAT_PASSWORD=your_secure_password"
+Environment="SQLITE_DB=/opt/chatroom/chat.db"
+
+# 资源限制
+MemoryLimit=64M
+CPUQuota=50%%
+
+[Install]
+WantedBy=multi-user.target
