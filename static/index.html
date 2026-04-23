@@ -1,186 +1,605 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>极简聊天室</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>聊天室</title>
 <style>
+:root{
+  --primary:#5b6abf;
+  --primary-dark:#4a59a8;
+  --sidebar-bg:#1a2332;
+  --sidebar-hover:#253347;
+  --chat-bg:#eef1f6;
+  --msg-other:#fff;
+  --msg-self:#5b6abf;
+  --text:#333;
+  --text-light:#888;
+  --border:#e0e0e0;
+  --danger:#e74c3c;
+  --success:#4caf50;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;background:#f0f2f5;height:100vh;display:flex;flex-direction:column}
-.header{background:#667eea;color:white;padding:10px 15px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-.header h1{font-size:16px;font-weight:600}
-.nick-area{display:flex;gap:8px;align-items:center}
-.nick-area input{padding:6px 10px;border:none;border-radius:4px;width:100px;font-size:13px}
-.nick-area button{padding:6px 12px;background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.4);border-radius:4px;cursor:pointer;font-size:12px}
-.main{flex:1;display:flex;overflow:hidden}
-.sidebar{width:180px;background:white;border-right:1px solid #ddd;padding:12px;overflow-y:auto;flex-shrink:0}
-.sidebar h3{font-size:11px;color:#666;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px}
-.user-list{list-style:none}
-.user-list li{padding:8px;margin:4px 0;border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;transition:all 0.2s}
-.user-list li:hover{background:#f0f0f0}
-.user-list li.active{background:#667eea;color:white}
-.user-list li::before{content:"●";color:#2ecc71;font-size:8px}
-.chat-area{flex:1;display:flex;flex-direction:column;background:white;min-width:0}
-.messages{flex:1;overflow-y:auto;padding:15px}
-.message{margin-bottom:12px;max-width:80%;animation:fadeIn 0.3s}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.message.system{max-width:100%;text-align:center;color:#999;font-size:12px;margin:8px 0}
-.message-header{display:flex;align-items:center;gap:6px;margin-bottom:3px}
-.nickname{font-weight:600;color:#667eea;font-size:13px}
-.time{font-size:11px;color:#999}
-.bubble{background:#f1f3f4;padding:8px 12px;border-radius:12px;display:inline-block;word-break:break-word;font-size:14px;line-height:1.4;color:#333}
-.message.mine{margin-left:auto;text-align:right}
-.message.mine .bubble{background:#667eea;color:white}
-.message.mine .nickname{color:#764ba2}
-.message.private .bubble{background:#fff3cd;border:1px solid #ffeaa7}
-.input-area{border-top:1px solid #ddd;padding:12px 15px;background:#fafafa;flex-shrink:0}
-.input-wrap{flex:1}
-.target-info{font-size:11px;color:#666;margin-bottom:6px}
-.target-info span{color:#667eea;cursor:pointer;text-decoration:underline}
-.input-row{display:flex;gap:10px;align-items:center}
-.input-area input{flex:1;padding:10px 15px;border:1px solid #ddd;border-radius:20px;font-size:14px;outline:none;transition:border 0.2s}
-.input-area input:focus{border-color:#667eea}
-.input-area button{padding:10px 20px;background:#667eea;color:white;border:none;border-radius:20px;cursor:pointer;font-size:14px;white-space:nowrap}
-.input-area button:hover{background:#5568d3}
-.empty-state{text-align:center;color:#999;padding:40px;font-size:14px}
-@media(max-width:600px){.sidebar{display:none}.header h1{font-size:14px}}
+html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--chat-bg)}
+button{font-family:inherit}
+
+/* ===== Layout ===== */
+#app{display:flex;height:100vh}
+@supports(height:100dvh){#app{height:100dvh}}
+
+/* ===== Sidebar ===== */
+#sidebar{
+  width:240px;background:var(--sidebar-bg);color:#c8d6e5;
+  display:flex;flex-direction:column;flex-shrink:0;
+  transition:transform .25s ease;
+}
+.sidebar-hd{
+  padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;font-weight:600;
+  color:#8899aa;text-transform:uppercase;letter-spacing:.5px;
+}
+.sidebar-hd .cnt{color:#5b6abf;font-size:12px;background:rgba(91,106,191,.15);padding:2px 8px;border-radius:10px}
+.sidebar-close{display:none;background:none;border:none;color:#8899aa;font-size:18px;cursor:pointer;padding:2px 6px}
+.sidebar-close:hover{color:#fff}
+#userList{list-style:none;flex:1;overflow-y:auto;padding:6px 0;-webkit-overflow-scrolling:touch}
+#userList::-webkit-scrollbar{width:4px}
+#userList::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
+#userList li{
+  padding:9px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;
+  font-size:14px;transition:background .12s;
+}
+#userList li:hover{background:var(--sidebar-hover)}
+#userList li .dot{width:8px;height:8px;background:var(--success);border-radius:50%;flex-shrink:0}
+#userList li.self{color:#5b6abf;font-weight:600}
+
+/* ===== Overlay ===== */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99}
+#overlay.open{display:block}
+
+/* ===== Chat Area ===== */
+#chatArea{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--chat-bg)}
+
+/* Header */
+#chatHeader{
+  height:52px;background:#fff;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;
+}
+#menuBtn{
+  display:none;background:none;border:none;font-size:20px;cursor:pointer;
+  color:var(--text);padding:4px 6px;border-radius:6px;
+}
+#menuBtn:hover{background:#f0f0f0}
+#chatTitle{flex:1;font-weight:600;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status-dot{width:9px;height:9px;border-radius:50%;background:var(--success);flex-shrink:0;transition:background .3s}
+.status-dot.off{background:var(--danger)}
+
+/* Tabs */
+#tabBar{
+  display:flex;background:#fff;border-bottom:1px solid var(--border);
+  overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+#tabBar::-webkit-scrollbar{display:none}
+.tab{
+  padding:9px 14px;font-size:13px;cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;color:var(--text-light);
+  display:flex;align-items:center;gap:5px;transition:color .12s;flex-shrink:0;
+  user-select:none;
+}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.tab .badge{
+  background:var(--danger);color:#fff;border-radius:10px;
+  font-size:11px;padding:1px 6px;font-weight:700;line-height:1.4;
+}
+.tab .x{
+  font-size:15px;color:#bbb;cursor:pointer;margin-left:2px;line-height:1;
+  border-radius:50%;width:18px;height:18px;display:inline-flex;
+  align-items:center;justify-content:center;transition:all .12s;
+}
+.tab .x:hover{color:var(--danger);background:rgba(231,76,60,.1)}
+.tab .lock{font-size:11px;opacity:.6}
+
+/* Messages */
+#messageArea{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:3px;-webkit-overflow-scrolling:touch}
+#messageArea::-webkit-scrollbar{width:5px}
+#messageArea::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:3px}
+
+.msg{max-width:72%;display:flex;flex-direction:column}
+.msg.self{align-self:flex-end}
+.msg.other{align-self:flex-start}
+.msg.sys{align-self:center;max-width:90%}
+
+.msg .sender{font-size:12px;color:var(--text-light);margin-bottom:2px;cursor:pointer}
+.msg .sender:hover{color:var(--primary)}
+.msg.self .sender{text-align:right}
+
+.msg .bubble{
+  padding:8px 14px;border-radius:16px;font-size:14px;line-height:1.55;
+  word-break:break-word;position:relative;
+}
+.msg.other .bubble{background:var(--msg-other);color:var(--text);border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.msg.self .bubble{background:var(--msg-self);color:#fff;border-bottom-right-radius:4px}
+.msg.sys .bubble{background:none;color:#aaa;font-size:12px;font-style:italic;padding:4px 0;box-shadow:none}
+
+.msg .time{font-size:10px;color:#bbb;margin-top:2px}
+.msg.self .time{text-align:right}
+.msg.sys .time{text-align:center}
+
+.empty-state{text-align:center;color:#c0c0c0;padding:60px 0;font-size:14px}
+
+/* Input */
+#inputBar{
+  display:flex;padding:8px 12px 10px;background:#fff;
+  border-top:1px solid var(--border);flex-shrink:0;gap:8px;align-items:center;
+}
+#msgInput{
+  flex:1;border:1px solid var(--border);border-radius:20px;
+  padding:10px 16px;font-size:16px;outline:none;transition:border-color .15s;
+  background:#f8f9fb;
+}
+#msgInput:focus{border-color:var(--primary);background:#fff}
+#sendBtn{
+  background:var(--primary);color:#fff;border:none;border-radius:20px;
+  padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;
+  flex-shrink:0;transition:background .12s;
+}
+#sendBtn:hover{background:var(--primary-dark)}
+#sendBtn:active{transform:scale(.96)}
+
+/* ===== Nick Modal ===== */
+#nickModal{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);
+  display:flex;align-items:center;justify-content:center;z-index:1000;
+}
+#nickModal.hidden{display:none}
+.modal-box{
+  background:#fff;padding:30px 26px;border-radius:16px;
+  width:90%;max-width:340px;text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.modal-box h3{margin-bottom:8px;font-size:20px;color:var(--text)}
+.modal-box p{font-size:13px;color:var(--text-light);margin-bottom:18px}
+.modal-box input{
+  width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:10px;
+  font-size:15px;outline:none;text-align:center;transition:border-color .15s;
+}
+.modal-box input:focus{border-color:var(--primary)}
+.modal-box button{
+  width:100%;padding:12px;margin-top:14px;background:var(--primary);
+  color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;
+  cursor:pointer;transition:background .12s;
+}
+.modal-box button:hover{background:var(--primary-dark)}
+.modal-box .err{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
+
+/* ===== Mobile ===== */
+@media(max-width:768px){
+  #menuBtn{display:block}
+  #sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:280px;z-index:100;
+    transform:translateX(-100%);
+  }
+  #sidebar.open{transform:translateX(0)}
+  .sidebar-close{display:block}
+  .msg{max-width:85%}
+  #inputBar{padding:6px 10px 8px}
+  #messageArea{padding:10px 10px}
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition-duration:.01ms!important}
+}
 </style>
 </head>
 <body>
-<div class="header">
-<h1>💬 极简聊天室</h1>
-<div class="nick-area">
-<input type="text" id="nickInput" placeholder="设置昵称" maxlength="20">
-<button onclick="setNick()">设置</button>
+
+<!-- Nickname Modal -->
+<div id="nickModal">
+  <div class="modal-box">
+    <h3>💬 加入聊天室</h3>
+    <p>输入昵称开始聊天</p>
+    <input type="text" id="nickInput" placeholder="你的昵称" maxlength="20" autocomplete="off" autocapitalize="off">
+    <button onclick="setNick()">加入聊天</button>
+    <div class="err" id="nickError"></div>
+  </div>
 </div>
-</div>
-<div class="main">
-<div class="sidebar">
-<h3>在线用户 (<span id="userCount">0</span>)</h3>
-<ul class="user-list" id="userList"></ul>
-</div>
-<div class="chat-area">
-<div class="messages" id="messages">
-<div class="empty-state">欢迎来到聊天室！<br>设置昵称后开始聊天</div>
-</div>
-<div class="input-area">
-<div class="input-wrap">
-<div class="target-info" id="targetInfo">正在公共频道聊天 <span onclick="setPublic()">[切换]</span></div>
-<div class="input-row">
-<input type="text" id="msgInput" placeholder="输入消息..." onkeypress="if(event.key==='Enter')send()">
-<button onclick="send()">发送</button>
-</div>
-</div>
-</div>
-</div>
-</div>
+
+<!-- Sidebar Overlay -->
+<div id="overlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="sidebar-hd">
+    <span>在线用户 <span class="cnt" id="userCount">0</span></span>
+    <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+  </div>
+  <ul id="userList"></ul>
+</aside>
+
+<!-- Chat Area -->
+<main id="chatArea">
+  <header id="chatHeader">
+    <button id="menuBtn" onclick="toggleSidebar()">☰</button>
+    <span id="chatTitle">公开频道</span>
+    <span id="connStatus" class="status-dot"></span>
+  </header>
+  <div id="tabBar"></div>
+  <div id="messageArea"></div>
+  <div id="inputBar">
+    <input type="text" id="msgInput" placeholder="发送消息..." autocomplete="off" autocapitalize="off">
+    <button id="sendBtn" onclick="sendMessage()">发送</button>
+  </div>
+</main>
 
 <script>
-let ws,myNick="",targetUser="",reconnectTimer,pingTimer;
+// ===== State =====
+let ws = null;
+let myNick = '';
+let nickConfirmed = false;
+let currentTab = 'public';
+let conversations = { 'public': { messages: [], unread: 0 } };
+let onlineUsers = [];
+let reconnectTimer = null;
 
-function connect(){
-const proto=location.protocol==='https:'?'wss:':'ws:';
-ws=new WebSocket(proto+'//'+location.host+'/ws');
+// ===== DOM =====
+const $ = id => document.getElementById(id);
+const msgArea = $('messageArea');
+const msgInput = $('msgInput');
+const tabBar = $('tabBar');
+const userListEl = $('userList');
+const chatTitle = $('chatTitle');
+const connStatus = $('connStatus');
+const nickModal = $('nickModal');
+const sidebar = $('sidebar');
+const overlay = $('overlay');
+const wsUrl = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws';
 
-ws.onopen=function(){
-console.log('Connected');
-if(myNick)setNick();
-};
+// ===== WebSocket =====
+function connect() {
+  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+  ws = new WebSocket(wsUrl);
 
-ws.onmessage=function(e){
-const msg=JSON.parse(e.data);
-handleMessage(msg);
-};
+  ws.onopen = function() {
+    updateStatus(true);
+    if (myNick) {
+      // Reconnect: reset state, re-send nick
+      nickConfirmed = false;
+      conversations = { 'public': { messages: [], unread: 0 } };
+      currentTab = 'public';
+      renderMessages();
+      renderTabs();
+      ws.send(JSON.stringify({ type: 'nick', content: myNick }));
+    }
+  };
 
-ws.onclose=function(){
-console.log('Disconnected');
-clearTimeout(reconnectTimer);
-reconnectTimer=setTimeout(connect,3000);
-};
+  ws.onmessage = function(e) {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch(_) { return; }
+    handleMessage(msg);
+  };
 
-ws.onerror=function(e){
-console.error('WS error:',e);
-};
+  ws.onclose = function() {
+    updateStatus(false);
+    // Show disconnect notice
+    if (nickConfirmed) {
+      conversations['public'].messages.push({
+        type: 'system', content: '连接已断开，正在尝试重新连接...',
+        timestamp: Date.now() / 1000 | 0
+      });
+      renderMessages();
+    }
+    scheduleReconnect();
+  };
+
+  ws.onerror = function() { ws.close(); };
 }
 
-function handleMessage(msg){
-if(msg.type==='online'){
-updateUserList(msg.content);
-return;
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(function() {
+    reconnectTimer = null;
+    connect();
+  }, 3000);
 }
 
-const div=document.createElement('div');
-div.className='message';
+// ===== Message Handling =====
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'system':
+      // Nick error before confirmation
+      if (!nickConfirmed && msg.content && msg.content.indexOf('已被占用') !== -1) {
+        $('nickError').textContent = msg.content;
+        nickModal.classList.remove('hidden');
+        myNick = '';
+        return;
+      }
+      conversations['public'].messages.push(msg);
+      confirmNick();
+      renderMessages();
+      break;
 
-if(msg.type==='system'){
-div.className+=' system';
-div.textContent=msg.content;
-}else{
-const isMine=msg.from===myNick;
-const isPrivate=msg.type==='private';
-if(isMine)div.className+=' mine';
-if(isPrivate)div.className+=' private';
-const prefix=isPrivate?(isMine?'→ '+msg.to:'← 私信'):'';
-div.innerHTML='<div class="message-header"><span class="nickname">'+prefix+' '+(msg.from||'匿名')+'</span><span class="time">'+new Date(msg.timestamp*1000).toLocaleTimeString()+'</span></div><div class="bubble">'+escapeHtml(msg.content)+'</div>';
+    case 'online':
+      onlineUsers = msg.content ? msg.content.split(',').filter(function(n){return n}) : [];
+      $('userCount').textContent = onlineUsers.length;
+      renderUsers();
+      confirmNick();
+      break;
+
+    case 'public':
+      conversations['public'].messages.push(msg);
+      if (currentTab !== 'public') conversations['public'].unread++;
+      confirmNick();
+      renderMessages();
+      renderTabs();
+      break;
+
+    case 'private':
+      var peer = msg.from === myNick ? msg.to : msg.from;
+      var key = 'private:' + peer;
+      if (!conversations[key]) conversations[key] = { messages: [], unread: 0 };
+      conversations[key].messages.push(msg);
+      if (key !== currentTab) conversations[key].unread++;
+      confirmNick();
+      renderMessages();
+      renderTabs();
+      break;
+  }
 }
 
-const container=document.getElementById('messages');
-if(container.querySelector('.empty-state'))container.innerHTML='';
-container.appendChild(div);
-container.scrollTop=container.scrollHeight;
+function confirmNick() {
+  if (!nickConfirmed && myNick) {
+    nickConfirmed = true;
+    nickModal.classList.add('hidden');
+  }
 }
 
-function updateUserList(usersStr){
-const users=usersStr.split(',').filter(u=>u);
-document.getElementById('userCount').textContent=users.length;
-const list=document.getElementById('userList');
-list.innerHTML='';
-users.forEach(user=>{
-const li=document.createElement('li');
-li.textContent=user;
-if(user===targetUser)li.className='active';
-li.onclick=()=>setPrivate(user);
-list.appendChild(li);
+// ===== Send =====
+function sendMessage() {
+  var content = msgInput.value.trim();
+  if (!content || !ws || ws.readyState !== WebSocket.OPEN || !myNick) return;
+  if (content.length > 2000) content = content.substring(0, 2000);
+
+  var msg = { content: content };
+  if (currentTab === 'public') {
+    msg.type = 'public';
+  } else {
+    msg.type = 'private';
+    msg.to = currentTab.replace('private:', '');
+  }
+  ws.send(JSON.stringify(msg));
+  msgInput.value = '';
+  msgInput.focus();
+}
+
+// ===== Nick =====
+function setNick() {
+  var input = $('nickInput');
+  var nick = input.value.trim();
+  var err = $('nickError');
+  if (!nick) { err.textContent = '请输入昵称'; return; }
+  if (nick.length > 20) { err.textContent = '昵称最长20个字符'; return; }
+  if (/[,\s]/.test(nick)) { err.textContent = '昵称不能包含逗号或空格'; return; }
+
+  myNick = nick;
+  err.textContent = '';
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'nick', content: myNick }));
+  } else {
+    connect();
+  }
+}
+
+// ===== Tabs =====
+function switchTab(tab) {
+  currentTab = tab;
+  if (conversations[tab]) conversations[tab].unread = 0;
+
+  if (tab === 'public') {
+    chatTitle.textContent = '公开频道';
+    msgInput.placeholder = '发送公开消息...';
+  } else {
+    var peer = tab.replace('private:', '');
+    chatTitle.textContent = '私聊: ' + peer;
+    msgInput.placeholder = '对 ' + peer + ' 说...';
+  }
+  renderMessages();
+  renderTabs();
+  msgInput.focus();
+  closeSidebar();
+}
+
+function openPrivateChat(nick) {
+  if (nick === myNick) return;
+  var key = 'private:' + nick;
+  if (!conversations[key]) conversations[key] = { messages: [], unread: 0 };
+  switchTab(key);
+}
+
+function closeTab(tab) {
+  if (tab === 'public') return;
+  delete conversations[tab];
+  if (currentTab === tab) switchTab('public');
+  else renderTabs();
+}
+
+// ===== Render Messages =====
+function renderMessages() {
+  var conv = conversations[currentTab];
+  if (!conv || conv.messages.length === 0) {
+    msgArea.innerHTML = '<div class="empty-state">暂无消息</div>';
+    return;
+  }
+
+  var msgs = conv.messages;
+  var atBottom = msgArea.scrollTop + msgArea.clientHeight >= msgArea.scrollHeight - 60;
+
+  var html = '';
+  for (var i = 0; i < msgs.length; i++) {
+    html += renderMsg(msgs[i], i > 0 ? msgs[i - 1] : null);
+  }
+  msgArea.innerHTML = html;
+
+  if (atBottom || (msgs.length > 0 && msgs[msgs.length - 1].from === myNick)) {
+    msgArea.scrollTop = msgArea.scrollHeight;
+  }
+}
+
+function renderMsg(msg, prev) {
+  if (msg.type === 'system') {
+    return '<div class="msg sys"><div class="bubble">' + esc(msg.content) +
+      '</div><div class="time">' + fmtTime(msg.timestamp) + '</div></div>';
+  }
+
+  var self = msg.from === myNick;
+  var cls = self ? 'self' : 'other';
+  var isPrivate = msg.type === 'private';
+
+  // Show sender? (group consecutive messages)
+  var showSender = true;
+  if (prev && prev.type === msg.type && prev.from === msg.from &&
+      prev.to === msg.to && msg.timestamp - prev.timestamp < 120) {
+    showSender = false;
+  }
+
+  var senderHtml = '';
+  if (showSender) {
+    if (!self) {
+      senderHtml = '<div class="sender" data-nick="' + escA(msg.from) + '">' +
+        (isPrivate ? '<span class="lock">🔒</span> ' : '') + esc(msg.from) + '</div>';
+    } else if (isPrivate) {
+      senderHtml = '<div class="sender"><span class="lock">🔒</span> 对 ' + esc(msg.to) + '</div>';
+    }
+  }
+
+  return '<div class="msg ' + cls + '">' + senderHtml +
+    '<div class="bubble">' + esc(msg.content) + '</div>' +
+    (showSender ? '<div class="time">' + fmtTime(msg.timestamp) + '</div>' : '') +
+    '</div>';
+}
+
+// ===== Render Tabs =====
+function renderTabs() {
+  var keys = Object.keys(conversations);
+  var html = '';
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var active = k === currentTab;
+    var label, closable = false, lock = false;
+
+    if (k === 'public') {
+      label = '公开频道';
+    } else {
+      label = k.replace('private:', '');
+      closable = true;
+      lock = true;
+    }
+
+    var unread = conversations[k].unread;
+    var badge = unread > 0 ? '<span class="badge">' + unread + '</span>' : '';
+    var closeHtml = closable ? '<span class="x" data-close="' + escA(k) + '">✕</span>' : '';
+    var lockHtml = lock ? '<span class="lock">🔒</span>' : '';
+
+    html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + escA(k) + '">' +
+      lockHtml + esc(label) + badge + closeHtml + '</div>';
+  }
+  tabBar.innerHTML = html;
+
+  // Scroll active tab into view
+  var activeTab = tabBar.querySelector('.tab.active');
+  if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+// ===== Render Users =====
+function renderUsers() {
+  var html = '';
+  for (var i = 0; i < onlineUsers.length; i++) {
+    var nick = onlineUsers[i];
+    var isSelf = nick === myNick;
+    html += '<li data-nick="' + escA(nick) + '"' + (isSelf ? ' class="self"' : '') + '>' +
+      '<span class="dot"></span><span>' + esc(nick) + (isSelf ? ' (我)' : '') + '</span></li>';
+  }
+  userListEl.innerHTML = html;
+}
+
+// ===== Sidebar =====
+function toggleSidebar() {
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('open');
+}
+
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  overlay.classList.remove('open');
+}
+
+// ===== Status =====
+function updateStatus(ok) {
+  connStatus.className = 'status-dot' + (ok ? '' : ' off');
+}
+
+// ===== Utilities =====
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function escA(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function fmtTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts * 1000);
+  var now = new Date();
+  var h = String(d.getHours()).padStart(2, '0');
+  var m = String(d.getMinutes()).padStart(2, '0');
+  // Show date if not today
+  if (d.toDateString() !== now.toDateString()) {
+    return (d.getMonth()+1) + '/' + d.getDate() + ' ' + h + ':' + m;
+  }
+  return h + ':' + m;
+}
+
+// ===== Event Delegation =====
+tabBar.addEventListener('click', function(e) {
+  // Close button
+  if (e.target.classList.contains('x')) {
+    closeTab(e.target.dataset.close);
+    return;
+  }
+  // Tab switch
+  var tab = e.target.closest('.tab');
+  if (tab && tab.dataset.tab) switchTab(tab.dataset.tab);
 });
-}
 
-function setNick(){
-const input=document.getElementById('nickInput');
-const nick=input.value.trim();
-if(!nick)return;
-myNick=nick;
-ws.send(JSON.stringify({type:'nick',content:nick}));
-input.value='';
-input.placeholder='当前: '+nick;
-}
+userListEl.addEventListener('click', function(e) {
+  var li = e.target.closest('li');
+  if (li && li.dataset.nick) openPrivateChat(li.dataset.nick);
+});
 
-function send(){
-const input=document.getElementById('msgInput');
-const content=input.value.trim();
-if(!content||!ws)return;
-const msg={type:targetUser?'private':'public',content:content};
-if(targetUser)msg.to=targetUser;
-ws.send(JSON.stringify(msg));
-input.value='';
-}
+msgArea.addEventListener('click', function(e) {
+  var sender = e.target.closest('.sender');
+  if (sender && sender.dataset.nick) openPrivateChat(sender.dataset.nick);
+});
 
-function setPrivate(user){
-targetUser=user;
-document.getElementById('targetInfo').innerHTML='正在私信: <b>'+user+'</b> <span onclick="setPublic()">[取消]</span>';
-}
+msgInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
 
-function setPublic(){
-targetUser='';
-document.getElementById('targetInfo').innerHTML='正在公共频道聊天 <span onclick="setPublic()">[切换]</span>';
-}
+$('nickInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    setNick();
+  }
+});
 
-function escapeHtml(text){
-const div=document.createElement('div');
-div.textContent=text;
-return div.innerHTML;
-}
-
-connect();
+// ===== Init =====
+$('nickInput').focus();
 </script>
 </body>
 </html>
