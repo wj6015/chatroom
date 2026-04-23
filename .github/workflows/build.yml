@@ -25,10 +25,13 @@ jobs:
 
       - run: go mod tidy
 
-      - name: Build binary
+      - name: Build static binary
         run: |
           export CGO_ENABLED=1
-          go build -ldflags='-s -w' -o chatroom .
+          go build -ldflags='-s -w -extldflags "-static"' -o chatroom .
+
+      - name: Show binary info
+        run: ls -la chatroom && wc -c < chatroom
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
