@@ -18,18 +18,17 @@
 }
 
 html, body { 
-  height: 100%; 
-  width: 100%;
+  height: 100%; width: 100%;
   overflow: hidden; 
-  position: fixed; /* 防止移动端整体橡皮筋回弹 */
-  font-family: -apple-system, sans-serif; 
+  position: fixed; 
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
 }
 
-/* ===== 核心布局方案 (解决需求2) ===== */
+/* ===== 核心布局：Flexbox 三段式 ===== */
 #app {
   display: flex;
   width: 100vw;
-  height: 100vh; /* 后续由 JS 动态修正为 100dvh 或 visualViewport 高度 */
+  height: 100vh;
   background: #f0f2f5;
 }
 
@@ -46,13 +45,13 @@ html, body {
 #main {
   flex: 1;
   display: flex;
-  flex-direction: column; /* 垂直三段式 */
+  flex-direction: column; /* 垂直三段式结构 */
   overflow: hidden;
   position: relative;
   background: #fff;
 }
 
-/* 顶部：固定 */
+/* 1. 顶栏：固定 */
 #chat-header {
   height: var(--header-h);
   background: var(--header-bg);
@@ -64,9 +63,9 @@ html, body {
   z-index: 10;
 }
 
-/* 中间：自适应滚动 */
+/* 2. 消息区：自动伸缩 */
 #messages-wrap {
-  flex: 1; /* 关键：自动占据剩余空间 */
+  flex: 1; 
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 15px;
@@ -75,7 +74,7 @@ html, body {
   gap: 8px;
 }
 
-/* 底部：固定 */
+/* 3. 输入区：固定底部 */
 #input-area {
   min-height: 60px;
   background: #fff;
@@ -87,68 +86,108 @@ html, body {
   flex-shrink: 0; 
 }
 
-/* 其余样式保持你的 UI 风格 */
-.msg-row { display: flex; gap: 8px; margin-bottom: 4px; }
+/* ===== UI 组件样式 ===== */
+.msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
 .msg-row.me { flex-direction: row-reverse; }
 .avatar { 
   width: 32px; height: 32px; border-radius: 50%; background: var(--accent); 
   color: #fff; display: flex; align-items: center; justify-content: center; 
-  font-size: 12px; cursor: pointer; flex-shrink: 0;
+  font-size: 12px; cursor: pointer; flex-shrink: 0; font-weight: bold;
 }
 .bubble { 
   max-width: 70%; padding: 8px 12px; border-radius: 12px; font-size: 14px; 
-  line-height: 1.5; word-break: break-all;
+  line-height: 1.5; word-break: break-all; position: relative;
 }
 .msg-row.me .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
 .msg-row:not(.me) .bubble { background: #e9ebef; color: #1c1e21; border-bottom-left-radius: 2px; }
 
 #msg-input {
   flex: 1; background: #f0f2f5; border: none; border-radius: 20px;
-  padding: 8px 15px; outline: none; font-size: 15px; max-height: 120px;
+  padding: 10px 15px; outline: none; font-size: 15px; max-height: 120px;
+  resize: none; font-family: inherit;
 }
-#send-btn { background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; margin-left: 8px; cursor: pointer; }
+#send-btn { 
+  background: var(--accent); color: #fff; border: none; 
+  width: 40px; height: 40px; border-radius: 50%; 
+  margin-left: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+
+/* 侧边栏与列表 */
+.user-item { padding:12px 20px; color:#ccc; cursor:pointer; border-bottom:1px solid #222; font-size: 14px; transition: 0.2s; }
+.user-item:hover { background: rgba(255,255,255,0.05); }
+.user-item.active { background: var(--accent); color: #fff; }
 
 /* 移动端适配 */
 @media (max-width: 680px) {
   #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
   #sidebar.open { transform: translateX(0); }
-  #menu-btn { display: block !important; margin-right: 10px; font-size: 20px; background: none; border: none; color: #fff; }
+  #menu-btn { display: block !important; margin-right: 10px; font-size: 20px; background: none; border: none; color: #fff; cursor: pointer; }
 }
 
 #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 150; }
 #overlay.show { display: block; }
+
+/* 认证弹窗 */
+#nick-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  z-index: 1000; display: flex; align-items: center; justify-content: center;
+}
+.modal-box {
+  background: #fff; padding: 28px; border-radius: 16px; width: 85%; max-width: 320px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+.modal-box h3 { margin-bottom: 5px; color: #1a1d24; }
+.modal-box p { font-size: 12px; color: #666; margin-bottom: 15px; }
+.modal-box input {
+  width: 100%; padding: 12px; margin-bottom: 10px; 
+  border: 1px solid #ddd; border-radius: 8px; outline: none; font-size: 14px;
+}
+.modal-box input:focus { border-color: var(--accent); }
+.modal-box button {
+  width: 100%; padding: 12px; background: var(--accent); color: #fff; 
+  border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
+}
 </style>
 </head>
 <body>
 
-<div id="nick-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:center;justify-content:center;">
-  <div style="background:#fff;padding:25px;border-radius:15px;width:85%;max-width:320px;">
-    <h3>设置昵称</h3>
-    <input id="nick-input" type="text" style="width:100%;padding:10px;margin:15px 0;border:1px solid #ddd;border-radius:8px;" placeholder="2-10位字符">
-    <button id="nick-confirm" style="width:100%;padding:10px;background:#6c63ff;color:#fff;border:none;border-radius:8px;">进入</button>
-    <p id="nick-err" style="color:red;font-size:12px;margin-top:5px;"></p>
+<div id="nick-modal">
+  <div class="modal-box">
+    <h3>身份认证</h3>
+    <p>新昵称自动注册，老昵称请验密</p>
+    <input id="nick-input" type="text" maxlength="15" placeholder="设置昵称" autocomplete="off">
+    <input id="nick-pass" type="password" placeholder="设置个人密码" autocomplete="off">
+    <button id="nick-confirm">进入聊天室</button>
+    <p id="nick-err" style="color:#e74c3c; margin-top:10px; min-height:14px;"></p>
   </div>
 </div>
 
 <div id="app">
   <div id="overlay"></div>
+  
   <div id="sidebar">
-    <div style="padding:20px; color:#fff; border-bottom:1px solid #333;">
-      <b>在线列表</b><br><small id="my-nick-badge"></small>
+    <div style="padding:20px; color:#fff; border-bottom:1px solid #2d323e;">
+      <b style="font-size:16px;">💬 在线列表</b><br>
+      <small id="my-nick-badge" style="color:var(--accent);"></small>
     </div>
-    <div id="public-entry" style="padding:15px; color:#fff; cursor:pointer;" class="active"># 公开频道</div>
+    <div id="public-entry" class="user-item active" style="font-weight:bold;"># 公开频道</div>
     <div id="user-list" style="flex:1; overflow-y:auto;"></div>
   </div>
 
   <div id="main">
     <div id="chat-header">
       <button id="menu-btn" style="display:none;">☰</button>
-      <div id="chat-title">公开频道</div>
+      <div id="chat-title" style="font-weight:bold; flex:1;">公开频道</div>
     </div>
+    
     <div id="messages-wrap"></div>
+    
     <div id="input-area">
       <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
-      <button id="send-btn">↑</button>
+      <button id="send-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      </button>
     </div>
   </div>
 </div>
@@ -164,30 +203,44 @@ const publicHistory = [];
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
 
-// ===== 核心修复：键盘弹出高度自适应 (需求2) =====
+// 键盘弹出高度自适应
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', () => {
-    // 动态设置 app 高度为视口高度，防止键盘顶起布局
     document.getElementById('app').style.height = window.visualViewport.height + 'px';
     scrollBottom();
   });
 }
 
-// ===== 核心修复：点击用户实现私聊 (需求3) =====
+function scrollBottom() {
+  requestAnimationFrame(() => {
+    messagesWrap.scrollTop = messagesWrap.scrollHeight;
+  });
+}
+
+// 核心功能：点击用户实现私聊
 function clickUser(nick) {
   if (nick === myNick) return;
   currentChat = nick;
   document.getElementById('chat-title').textContent = '私聊: ' + nick;
   renderMessages();
-  // 移动端点击后收起侧边栏
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
 }
 
 function connectWs() {
+  const pwd = document.getElementById('nick-pass').value.trim();
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen = () => ws.send(JSON.stringify({type:'nick', content: myNick}));
+
+  ws.onopen = () => {
+    // 认证数据包
+    ws.send(JSON.stringify({
+      type: 'nick',
+      from: myNick,
+      password: pwd
+    }));
+  };
+
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if(msg.type === 'online') {
@@ -202,19 +255,27 @@ function connectWs() {
       privateHistory[peer].push(msg);
       if(currentChat === peer) appendMsgUI(msg);
     } else if(msg.type === 'system') {
-        if(msg.content.includes("占用")) {
-            alert(msg.content);
-            location.reload();
-        }
+      if(msg.content.includes("占用")) {
+        // 如果是占用/密错，重新弹窗
+        document.getElementById('nick-modal').style.display = 'flex';
+        document.getElementById('nick-err').textContent = msg.content;
+        ws.close();
+      } else {
+        appendSystemMsg(msg.content);
+      }
     }
+  };
+
+  ws.onclose = () => {
+    setTimeout(() => { if(!myNick == '') connectWs(); }, 3000);
   };
 }
 
 function updateUserList() {
   const list = document.getElementById('user-list');
   list.innerHTML = onlineUsers.map(u => `
-    <div onclick="clickUser('${u}')" style="padding:12px 20px; color:#ccc; cursor:pointer; border-bottom:1px solid #222;">
-      ● ${u}
+    <div class="user-item" onclick="clickUser('${u}')">
+      <span style="color:#48cfad; margin-right:8px;">●</span>${u}
     </div>
   `).join('');
 }
@@ -230,7 +291,6 @@ function appendMsgUI(msg) {
   const isMe = msg.from === myNick;
   const div = document.createElement('div');
   div.className = `msg-row ${isMe ? 'me' : ''}`;
-  // 头像增加点击私聊功能 (需求3)
   div.innerHTML = `
     <div class="avatar" onclick="clickUser('${msg.from}')">${msg.from[0].toUpperCase()}</div>
     <div class="bubble">${msg.content}</div>
@@ -239,14 +299,22 @@ function appendMsgUI(msg) {
   scrollBottom();
 }
 
-function scrollBottom() {
-  messagesWrap.scrollTop = messagesWrap.scrollHeight;
+function appendSystemMsg(text) {
+  const div = document.createElement('div');
+  div.style.cssText = "text-align:center; font-size:12px; color:#999; margin:10px 0;";
+  div.textContent = text;
+  messagesWrap.appendChild(div);
+  scrollBottom();
 }
 
-// 事件监听
+// 事件绑定
 document.getElementById('nick-confirm').onclick = () => {
   const n = document.getElementById('nick-input').value.trim();
-  if(n.length < 2) return;
+  const p = document.getElementById('nick-pass').value.trim();
+  if(n.length < 2 || p.length < 1) {
+    document.getElementById('nick-err').textContent = '请输入昵称和密码';
+    return;
+  }
   myNick = n;
   document.getElementById('my-nick-badge').textContent = '@' + myNick;
   document.getElementById('nick-modal').style.display = 'none';
@@ -255,15 +323,26 @@ document.getElementById('nick-confirm').onclick = () => {
 
 document.getElementById('send-btn').onclick = () => {
   const content = msgInput.value.trim();
-  if(!content) return;
-  const msg = {
+  if(!content || !ws) return;
+  ws.send(JSON.stringify({
     type: currentChat === 'public' ? 'public' : 'private',
     to: currentChat === 'public' ? '' : currentChat,
     content: content
-  };
-  ws.send(JSON.stringify(msg));
+  }));
   msgInput.value = '';
   msgInput.style.height = 'auto';
+};
+
+msgInput.oninput = () => {
+  msgInput.style.height = 'auto';
+  msgInput.style.height = msgInput.scrollHeight + 'px';
+};
+
+msgInput.onkeydown = (e) => {
+  if(e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('send-btn').click();
+  }
 };
 
 document.getElementById('public-entry').onclick = () => {
