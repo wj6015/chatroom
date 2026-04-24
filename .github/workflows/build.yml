@@ -1,34 +1,21 @@
 name: Build and Release
-
 on:
   push:
     branches: [ "main" ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 使用 Alpine 容器进行编译，确保 libc 环境完全一致
     container: alpine:latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Build Essentials
-        run: |
-          # 安装 Go 编译器、GCC 和 SQLite 开发库
-          apk add --no-cache go musl-dev gcc sqlite-dev build-base
-
+        run: apk add --no-cache go musl-dev gcc sqlite-dev build-base
       - name: Build Binary
         run: |
           export CGO_ENABLED=1
           export GOOS=linux
-          # 检查依赖并同步
           go mod tidy
-          # 静态链接参数解释：
-          # -linkmode external: 使用外部链接器 (gcc)
-          # -extldflags "-static": 强制所有库静态打包，不依赖系统 .so 文件
-          # -s -w: 压缩体积，移除调试信息（对 128M 存储很友好）
           go build -ldflags '-linkmode external -extldflags "-static" -s -w' -o chatroom main.go
-
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
