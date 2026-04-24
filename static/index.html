@@ -7,17 +7,92 @@
 <style>
 /* ===== Reset & Layout ===== */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-:root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; }
-html, body { height: 100%; width: 100%; overflow: hidden; position: fixed; font-family: -apple-system, system-ui, sans-serif; }
+:root { 
+    --sidebar-bg: #1a1d24; 
+    --header-bg: #1a1d24; 
+    --accent: #6c63ff; 
+    --text-light: #cdd1db; 
+    --border: #e4e6ea; 
+    --sidebar-w: 240px; 
+    --header-h: 52px; 
+}
 
-#app { display: flex; width: 100vw; height: 100vh; background: #f0f2f5; }
-#sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; transition: 0.3s; z-index: 200; }
-#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: #fff; }
+/* 移除 position: fixed，改用 flex 确保 body 撑满 */
+html, body { 
+    height: 100%; 
+    width: 100%; 
+    overflow: hidden; 
+    font-family: -apple-system, system-ui, sans-serif; 
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+}
 
-/* 三段式结构 */
-#chat-header { height: var(--header-h); background: var(--header-bg); color: #fff; display: flex; align-items: center; padding: 0 16px; flex-shrink: 0; z-index: 10; }
-#messages-wrap { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
-#input-area { min-height: 60px; background: #fff; border-top: 1px solid var(--border); display: flex; align-items: center; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); flex-shrink: 0; }
+/* 核心修改：使用 svh 适配移动端动态工具栏 */
+#app { 
+    display: flex; 
+    width: 100vw; 
+    height: 100vh; 
+    height: 100svh; 
+    background: #f0f2f5; 
+    overflow: hidden;
+}
+
+#sidebar { 
+    width: var(--sidebar-w); 
+    background: var(--sidebar-bg); 
+    display: flex; 
+    flex-direction: column; 
+    flex-shrink: 0; 
+    transition: 0.3s; 
+    z-index: 200; 
+}
+
+#main { 
+    flex: 1; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+    position: relative; 
+    background: #fff;
+    min-height: 0; /* 允许在父容器中收缩 */
+}
+
+/* 三段式结构高度锁定 */
+#chat-header { 
+    height: var(--header-h); 
+    background: var(--header-bg); 
+    color: #fff; 
+    display: flex; 
+    align-items: center; 
+    padding: 0 16px; 
+    flex-shrink: 0; 
+    z-index: 10; 
+}
+
+#messages-wrap { 
+    flex: 1; 
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; 
+    padding: 15px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px;
+    min-height: 0; /* 关键：防止消息撑爆容器 */
+}
+
+#input-area { 
+    min-height: 60px; 
+    background: #fff; 
+    border-top: 1px solid var(--border); 
+    display: flex; 
+    align-items: center; 
+    padding: 10px 12px; 
+    /* 适配 iOS 安全区域 */
+    padding-bottom: calc(10px + env(safe-area-inset-bottom)); 
+    flex-shrink: 0; 
+    z-index: 100;
+}
 
 /* 消息样式 */
 .msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.2s ease; }
@@ -102,6 +177,17 @@ function scrollBottom() {
   requestAnimationFrame(() => { messagesWrap.scrollTop = messagesWrap.scrollHeight; });
 }
 
+// 核心改进：适配 iOS 键盘弹出导致的视口高度变化
+const adjustHeight = () => {
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  document.getElementById('app').style.height = vh + 'px';
+  scrollBottom();
+};
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', adjustHeight);
+}
+
 function connectWs() {
   const pwd = document.getElementById('nick-pass').value.trim();
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -120,7 +206,6 @@ function connectWs() {
       publicHistory.push(msg);
       if(currentChat === 'public') appendMsgUI(msg);
     } else if(msg.type === 'private') {
-      // 关键处理：无论是收到别人的，还是收到自己发出去的确认包(ACK)，都执行
       const peer = msg.from === myNick ? msg.to : msg.from;
       if(!privateHistory[peer]) privateHistory[peer] = [];
       privateHistory[peer].push(msg);
@@ -200,6 +285,8 @@ document.getElementById('send-btn').onclick = () => {
   }));
   msgInput.value = '';
   msgInput.style.height = 'auto';
+  // 聚焦回输入框在 iOS 下很重要，避免视口乱跳
+  msgInput.focus();
 };
 
 document.getElementById('public-entry').onclick = () => {
@@ -215,11 +302,14 @@ document.getElementById('menu-btn').onclick = () => {
 };
 
 document.getElementById('overlay').onclick = () => {
-  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar').classList.remove('remove');
   document.getElementById('overlay').classList.remove('show');
 };
 
 msgInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('send-btn').click(); } };
+
+// 初始执行一次
+adjustHeight();
 </script>
 </body>
 </html>
