@@ -27,7 +27,7 @@ type Message struct {
 	To        string `json:"to"`
 	Content   string `json:"content"`
 	Timestamp int64  `json:"timestamp"`
-	Password  string `json:"password,omitempty"` // 仅登录时使用
+	Password  string `json:"password,omitempty"`
 }
 
 type Client struct {
@@ -124,8 +124,11 @@ func broadcastOnline() {
 
 func saveMessage(msg Message) {
 	if msg.Type == "system" || msg.Type == "online" { return }
-	db.Exec("INSERT INTO messages (type, sender, receiver, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+	_, err := db.Exec("INSERT INTO messages (type, sender, receiver, content, timestamp) VALUES (?, ?, ?, ?, ?)",
 		msg.Type, msg.From, msg.To, msg.Content, msg.Timestamp)
+	if err != nil {
+		log.Println("DB Save Error:", err)
+	}
 }
 
 func (c *Client) readPump(ctx context.Context) {
@@ -147,21 +150,17 @@ func (c *Client) readPump(ctx context.Context) {
 			if len(nick) < 2 { continue }
 
 			hub.mu.Lock()
-			// 1. 检查是否有人正在使用该昵称
 			if _, online := hub.nickMap[nick]; online {
 				hub.mu.Unlock()
 				c.send <- Message{Type: "system", Content: "昵称已被占用，请重新更换昵称"}
 				continue
 			}
 
-			// 2. 数据库校验/注册
 			var storedPwd string
 			err := db.QueryRow("SELECT password FROM users WHERE username = ?", nick).Scan(&storedPwd)
 			if err == sql.ErrNoRows {
-				// 新用户注册
 				db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", nick, pwd)
 			} else if err == nil && storedPwd != pwd {
-				// 密码错误，按要求提示“被占用”
 				hub.mu.Unlock()
 				c.send <- Message{Type: "system", Content: "昵称已被占用，请重新更换昵称"}
 				continue
@@ -171,10 +170,10 @@ func (c *Client) readPump(ctx context.Context) {
 			hub.nickMap[nick] = c
 			hub.mu.Unlock()
 
-			// 发送历史记录
+			// 登录时拉取所有相关的历史记录（包括离线留言）
 			rows, _ := db.Query(`SELECT type, sender, receiver, content, timestamp FROM messages 
 				WHERE type='public' OR (type='private' AND (sender=? OR receiver=?)) 
-				ORDER BY timestamp DESC LIMIT 60`, nick, nick)
+				ORDER BY timestamp DESC LIMIT 80`, nick, nick)
 			var msgs []Message
 			for rows.Next() {
 				var m Message
@@ -185,20 +184,27 @@ func (c *Client) readPump(ctx context.Context) {
 			for _, m := range msgs { c.send <- m }
 			broadcastOnline()
 
-		case "public", "private":
+		case "public":
 			if c.nick == "" { continue }
 			msg.From = c.nick
-			if msg.Type == "public" {
-				hub.broadcast <- msg
-			} else {
-				hub.mu.RLock()
-				target, exists := hub.nickMap[msg.To]
-				hub.mu.RUnlock()
-				if exists {
-					target.send <- msg
-					if target != c { c.send <- msg }
-					saveMessage(msg)
-				}
+			hub.broadcast <- msg
+
+		case "private":
+			if c.nick == "" { continue }
+			msg.From = c.nick
+			
+			// 1. 强制入库（实现离线留言的关键）
+			saveMessage(msg)
+
+			// 2. 给发送者回传 ACK 确认包
+			c.send <- msg
+
+			// 3. 如果接收者在线，则推送
+			hub.mu.RLock()
+			target, exists := hub.nickMap[msg.To]
+			hub.mu.RUnlock()
+			if exists && target != c {
+				target.send <- msg
 			}
 		}
 	}
@@ -256,7 +262,7 @@ func main() {
 			http.Redirect(w, r, "/login?error=1", http.StatusSeeOther)
 			return
 		}
-		w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1d24;color:#fff}form{background:#2a2d36;padding:30px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.5)}input{display:block;width:100%;margin:15px 0;padding:12px;border-radius:8px;border:none}button{width:100%;padding:12px;background:#6c63ff;color:#fff;border:none;border-radius:8px;cursor:pointer}</style></head><body><form method="POST"><h2>Chatroom Login</h2><input type="password" name="password" placeholder="Password" required autofocus><button type="submit">Enter</button></form></body></html>`))
+		w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1d24;color:#fff}form{background:#2a2d36;padding:30px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.5)}input{display:block;width:100%;margin:15px 0;padding:12px;border-radius:8px;border:none}button{width:100%;padding:12px;background:#6c63ff;color:#fff;border:none;border-radius:8px;cursor:pointer}</style></head><body><form method="POST"><h2>Chatroom Login</h2><button type="submit">Enter</button><input type="password" name="password" placeholder="Password" required autofocus></form></body></html>`))
 	})
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
