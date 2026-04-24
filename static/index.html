@@ -167,7 +167,7 @@ function updateUserList() {
   document.getElementById('user-list').innerHTML = allUsers.map(u => {
     // 获取当前用户的未读数
     const count = unreadCounts[u.name] || 0;
-    const badge = count > 0 ? `<span class="unread-badge">[${count}]</span>` : '';
+    const badge = count > 0 ? `<span class="unread-badge">${count}</span>` : '';
     
     return `
       <div class="user-item ${currentChat === u.name ? 'active' : ''}" onclick="clickUser('${u.name}')">
