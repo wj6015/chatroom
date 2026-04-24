@@ -3,99 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>极简聊天室</title>
+<title>宇宙公司聊天室</title>
 <style>
 /* ===== Reset & Layout ===== */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-:root { 
-    --sidebar-bg: #1a1d24; 
-    --header-bg: #1a1d24; 
-    --accent: #6c63ff; 
-    --text-light: #cdd1db; 
-    --border: #e4e6ea; 
-    --sidebar-w: 240px; 
-    --header-h: 52px; 
-}
+:root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; }
+html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; }
 
-/* 移除 position: fixed，改用 flex 确保 body 撑满 */
-html, body { 
-    height: 100%; 
-    width: 100%; 
-    overflow: hidden; 
-    font-family: -apple-system, system-ui, sans-serif; 
-    background: #f0f2f5;
-    display: flex;
-    flex-direction: column;
-}
+#app { display: flex; width: 100vw; height: 100vh; height: 100svh; background: #f0f2f5; overflow: hidden; }
+#sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; transition: 0.3s; z-index: 200; }
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: #fff; min-height: 0; }
 
-/* 核心修改：使用 svh 适配移动端动态工具栏 */
-#app { 
-    display: flex; 
-    width: 100vw; 
-    height: 100vh; 
-    height: 100svh; 
-    background: #f0f2f5; 
-    overflow: hidden;
-}
+#chat-header { height: var(--header-h); background: var(--header-bg); color: #fff; display: flex; align-items: center; padding: 0 16px; flex-shrink: 0; z-index: 10; }
+#messages-wrap { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 15px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+#input-area { min-height: 60px; background: #fff; border-top: 1px solid var(--border); display: flex; align-items: center; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); flex-shrink: 0; z-index: 100; }
 
-#sidebar { 
-    width: var(--sidebar-w); 
-    background: var(--sidebar-bg); 
-    display: flex; 
-    flex-direction: column; 
-    flex-shrink: 0; 
-    transition: 0.3s; 
-    z-index: 200; 
-}
-
-#main { 
-    flex: 1; 
-    display: flex; 
-    flex-direction: column; 
-    overflow: hidden; 
-    position: relative; 
-    background: #fff;
-    min-height: 0; /* 允许在父容器中收缩 */
-}
-
-/* 三段式结构高度锁定 */
-#chat-header { 
-    height: var(--header-h); 
-    background: var(--header-bg); 
-    color: #fff; 
-    display: flex; 
-    align-items: center; 
-    padding: 0 16px; 
-    flex-shrink: 0; 
-    z-index: 10; 
-}
-
-#messages-wrap { 
-    flex: 1; 
-    overflow-y: auto; 
-    -webkit-overflow-scrolling: touch; 
-    padding: 15px; 
-    display: flex; 
-    flex-direction: column; 
-    gap: 8px;
-    min-height: 0; /* 关键：防止消息撑爆容器 */
-}
-
-#input-area { 
-    min-height: 60px; 
-    background: #fff; 
-    border-top: 1px solid var(--border); 
-    display: flex; 
-    align-items: center; 
-    padding: 10px 12px; 
-    /* 适配 iOS 安全区域 */
-    padding-bottom: calc(10px + env(safe-area-inset-bottom)); 
-    flex-shrink: 0; 
-    z-index: 100;
-}
-
-/* 消息样式 */
-.msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.2s ease; }
+.msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.15s ease; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
 .msg-row.me { flex-direction: row-reverse; }
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0; cursor: pointer; }
@@ -106,9 +29,12 @@ html, body {
 #msg-input { flex: 1; background: #f0f2f5; border: none; border-radius: 20px; padding: 10px 15px; outline: none; font-size: 15px; max-height: 120px; resize: none; }
 #send-btn { background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; margin-left: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
-.user-item { padding:12px 20px; color:#ccc; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; }
+.user-item { padding:12px 20px; color:#cdd1db; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .user-item:hover { background: rgba(255,255,255,0.05); }
 .user-item.active { background: var(--accent); color: #fff; }
+.dot { font-size: 10px; }
+.dot.online { color: #48cfad; }
+.dot.offline { color: #666; }
 
 @media (max-width: 680px) {
   #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
@@ -118,7 +44,6 @@ html, body {
 #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 150; }
 #overlay.show { display: block; }
 
-/* 弹窗 */
 #nick-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; }
 .modal-box { background: #fff; padding: 28px; border-radius: 16px; width: 85%; max-width: 320px; }
 .modal-box input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
@@ -130,7 +55,7 @@ html, body {
 <div id="nick-modal">
   <div class="modal-box">
     <h3>身份认证</h3>
-    <p style="font-size:12px; color:#666; margin: 5px 0 15px 0;">新昵称自动注册，老昵称请验密</p>
+    <p style="font-size:12px; color:#666; margin: 5px 0 15px 0;">新账号自动注册，老账号请直接输入</p>
     <input id="nick-input" type="text" maxlength="15" placeholder="设置昵称">
     <input id="nick-pass" type="password" placeholder="个人密码">
     <button id="nick-confirm">进入聊天室</button>
@@ -142,10 +67,12 @@ html, body {
   <div id="overlay"></div>
   <div id="sidebar">
     <div style="padding:20px; color:#fff; border-bottom:1px solid #2d323e;">
-      <b style="font-size:16px;">💬 在线列表</b><br>
+      <b style="font-size:16px;">💬 通讯录</b><br>
       <small id="my-nick-badge" style="color:var(--accent);"></small>
     </div>
-    <div id="public-entry" class="user-item active"># 公开频道</div>
+    <div id="public-entry" class="user-item active">
+      <span class="dot online">#</span> 公开频道
+    </div>
     <div id="user-list"></div>
   </div>
 
@@ -166,7 +93,7 @@ html, body {
 let myNick = '';
 let currentChat = 'public';
 let ws = null;
-let onlineUsers = [];
+let allUsers = [];
 const privateHistory = {};
 const publicHistory = [];
 
@@ -177,15 +104,16 @@ function scrollBottom() {
   requestAnimationFrame(() => { messagesWrap.scrollTop = messagesWrap.scrollHeight; });
 }
 
-// 核心改进：适配 iOS 键盘弹出导致的视口高度变化
-const adjustHeight = () => {
+function adjustHeight() {
   const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   document.getElementById('app').style.height = vh + 'px';
   scrollBottom();
-};
+}
+if (window.visualViewport) window.visualViewport.addEventListener('resize', adjustHeight);
 
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', adjustHeight);
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
 }
 
 function connectWs() {
@@ -200,7 +128,7 @@ function connectWs() {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if(msg.type === 'online') {
-      onlineUsers = msg.content.split(',').filter(u => u && u !== myNick);
+      allUsers = msg.user_list.filter(u => u.name !== myNick);
       updateUserList();
     } else if(msg.type === 'public') {
       publicHistory.push(msg);
@@ -211,7 +139,7 @@ function connectWs() {
       privateHistory[peer].push(msg);
       if(currentChat === peer) appendMsgUI(msg);
     } else if(msg.type === 'system') {
-      if(msg.content.includes("占用")) {
+      if(msg.content.includes("密码") || msg.content.includes("别处")) {
         document.getElementById('nick-modal').style.display = 'flex';
         document.getElementById('nick-err').textContent = msg.content;
         ws.close();
@@ -223,9 +151,9 @@ function connectWs() {
 }
 
 function updateUserList() {
-  document.getElementById('user-list').innerHTML = onlineUsers.map(u => `
-    <div class="user-item" onclick="clickUser('${u}')">
-      <span style="color:#48cfad; margin-right:8px;">●</span>${u}
+  document.getElementById('user-list').innerHTML = allUsers.map(u => `
+    <div class="user-item ${currentChat === u.name ? 'active' : ''}" onclick="clickUser('${u.name}')">
+      <span class="dot ${u.online ? 'online' : 'offline'}">${u.online ? '●' : '○'}</span>${u.name}
     </div>
   `).join('');
 }
@@ -234,9 +162,9 @@ function clickUser(nick) {
   currentChat = nick;
   document.getElementById('chat-title').textContent = '私聊: ' + nick;
   document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
+  updateUserList();
   renderMessages();
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('overlay').classList.remove('show');
+  closeSidebar();
 }
 
 function renderMessages() {
@@ -285,15 +213,16 @@ document.getElementById('send-btn').onclick = () => {
   }));
   msgInput.value = '';
   msgInput.style.height = 'auto';
-  // 聚焦回输入框在 iOS 下很重要，避免视口乱跳
   msgInput.focus();
 };
 
 document.getElementById('public-entry').onclick = () => {
   currentChat = 'public';
   document.getElementById('chat-title').textContent = '公开频道';
+  document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
   document.getElementById('public-entry').classList.add('active');
   renderMessages();
+  closeSidebar();
 };
 
 document.getElementById('menu-btn').onclick = () => {
@@ -301,14 +230,10 @@ document.getElementById('menu-btn').onclick = () => {
   document.getElementById('overlay').classList.add('show');
 };
 
-document.getElementById('overlay').onclick = () => {
-  document.getElementById('sidebar').classList.remove('remove');
-  document.getElementById('overlay').classList.remove('show');
-};
+document.getElementById('overlay').onclick = closeSidebar;
 
 msgInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('send-btn').click(); } };
 
-// 初始执行一次
 adjustHeight();
 </script>
 </body>
