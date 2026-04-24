@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,12 @@ type Message struct {
 	Content   string `json:"content"`
 	Timestamp int64  `json:"timestamp"`
 	Password  string `json:"password,omitempty"`
+	UserList  []UserStatus `json:"user_list,omitempty"`
+}
+
+type UserStatus struct {
+	Name   string `json:"name"`
+	Online bool   `json:"online"`
 }
 
 type Client struct {
@@ -87,7 +94,7 @@ func (h *Hub) run() {
 				client.cancel()
 			}
 			h.mu.Unlock()
-			broadcastOnline()
+			broadcastUserList()
 		case msg := <-h.broadcast:
 			if msg.Type == "public" {
 				saveMessage(msg)
@@ -104,31 +111,45 @@ func (h *Hub) run() {
 	}
 }
 
-func broadcastOnline() {
+// 核心改动：广播全量用户列表及其状态
+func broadcastUserList() {
 	hub.mu.RLock()
-	var nicks []string
-	for nick := range hub.nickMap {
-		nicks = append(nicks, nick)
+	defer hub.mu.RUnlock()
+
+	rows, err := db.Query("SELECT username FROM users")
+	if err != nil { return }
+	defer rows.Close()
+
+	var list []UserStatus
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		_, isOnline := hub.nickMap[name]
+		list = append(list, UserStatus{Name: name, Online: isOnline})
 	}
-	hub.mu.RUnlock()
-	msg := Message{Type: "online", Content: strings.Join(nicks, ","), Timestamp: time.Now().Unix()}
-	hub.mu.RLock()
+
+	// 按在线状态和字母排序
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Online != list[j].Online {
+			return list[i].Online
+		}
+		return list[i].Name < list[j].Name
+	})
+
+	msg := Message{Type: "online", UserList: list, Timestamp: time.Now().Unix()}
 	for client := range hub.clients {
 		select {
 		case client.send <- msg:
 		default:
 		}
 	}
-	hub.mu.RUnlock()
 }
 
 func saveMessage(msg Message) {
 	if msg.Type == "system" || msg.Type == "online" { return }
 	_, err := db.Exec("INSERT INTO messages (type, sender, receiver, content, timestamp) VALUES (?, ?, ?, ?, ?)",
 		msg.Type, msg.From, msg.To, msg.Content, msg.Timestamp)
-	if err != nil {
-		log.Println("DB Save Error:", err)
-	}
+	if err != nil { log.Println("DB Error:", err) }
 }
 
 func (c *Client) readPump(ctx context.Context) {
@@ -152,7 +173,7 @@ func (c *Client) readPump(ctx context.Context) {
 			hub.mu.Lock()
 			if _, online := hub.nickMap[nick]; online {
 				hub.mu.Unlock()
-				c.send <- Message{Type: "system", Content: "昵称已被占用，请重新更换昵称"}
+				c.send <- Message{Type: "system", Content: "此账号已在别处登录"}
 				continue
 			}
 
@@ -162,7 +183,7 @@ func (c *Client) readPump(ctx context.Context) {
 				db.Exec("INSERT INTO users (username, password) VALUES (?, ?)", nick, pwd)
 			} else if err == nil && storedPwd != pwd {
 				hub.mu.Unlock()
-				c.send <- Message{Type: "system", Content: "昵称已被占用，请重新更换昵称"}
+				c.send <- Message{Type: "system", Content: "密码错误或昵称被占用"}
 				continue
 			}
 
@@ -170,7 +191,7 @@ func (c *Client) readPump(ctx context.Context) {
 			hub.nickMap[nick] = c
 			hub.mu.Unlock()
 
-			// 登录时拉取所有相关的历史记录（包括离线留言）
+			// 拉取历史记录
 			rows, _ := db.Query(`SELECT type, sender, receiver, content, timestamp FROM messages 
 				WHERE type='public' OR (type='private' AND (sender=? OR receiver=?)) 
 				ORDER BY timestamp DESC LIMIT 80`, nick, nick)
@@ -182,7 +203,7 @@ func (c *Client) readPump(ctx context.Context) {
 			}
 			rows.Close()
 			for _, m := range msgs { c.send <- m }
-			broadcastOnline()
+			broadcastUserList()
 
 		case "public":
 			if c.nick == "" { continue }
@@ -192,14 +213,8 @@ func (c *Client) readPump(ctx context.Context) {
 		case "private":
 			if c.nick == "" { continue }
 			msg.From = c.nick
-			
-			// 1. 强制入库（实现离线留言的关键）
 			saveMessage(msg)
-
-			// 2. 给发送者回传 ACK 确认包
 			c.send <- msg
-
-			// 3. 如果接收者在线，则推送
 			hub.mu.RLock()
 			target, exists := hub.nickMap[msg.To]
 			hub.mu.RUnlock()
@@ -262,7 +277,7 @@ func main() {
 			http.Redirect(w, r, "/login?error=1", http.StatusSeeOther)
 			return
 		}
-		w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1d24;color:#fff}form{background:#2a2d36;padding:30px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.5)}input{display:block;width:100%;margin:15px 0;padding:12px;border-radius:8px;border:none}button{width:100%;padding:12px;background:#6c63ff;color:#fff;border:none;border-radius:8px;cursor:pointer}</style></head><body><form method="POST"><h2>宇宙公司会议室</h2><button type="submit">登陆</button><input type="password" name="password" placeholder="请输入聊天室密码" required autofocus></form></body></html>`))
+		w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1d24;color:#fff}form{background:#2a2d36;padding:30px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.5)}input{display:block;width:100%;margin:15px 0;padding:12px;border-radius:8px;border:none}button{width:100%;padding:12px;background:#6c63ff;color:#fff;border:none;border-radius:8px;cursor:pointer}</style></head><body><form method="POST"><h2>宇宙公司聊天室</h2><button type="submit">Enter</button><input type="password" name="password" placeholder="请输入聊天室密码" required autofocus></form></body></html>`))
 	})
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
@@ -270,7 +285,7 @@ func main() {
 		if cookie == nil || cookie.Value != accessPassword { return }
 		conn, _ := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 		ctx, cancel := context.WithCancel(r.Context())
-		client := &Client{conn: conn, send: make(chan Message, 32), cancel: cancel}
+		client := &Client{conn: conn, send: make(chan Message, 64), cancel: cancel}
 		hub.register <- client
 		go client.writePump(ctx)
 		client.readPump(ctx)
