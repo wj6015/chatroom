@@ -1,8 +1,3 @@
-import os
-
-# 定义README内容
-readme_content = """# 🚀 极简私人云端聊天室 (Ultra-Lightweight Chatroom)
-
 这是一个专为 **低配 VPS**（如 64M/128M 内存的 NAT VPS）设计的轻量级即时通讯系统。采用 Go 语言开发，具备高性能、低延迟和强隐私保护的特点。
 
 ## ✨ 核心特性
@@ -29,7 +24,18 @@ readme_content = """# 🚀 极简私人云端聊天室 (Ultra-Lightweight Chatro
 3. 下载名为 `chatroom-binary` 的 Artifact。
 4. 解压获得 `chatroom` 二进制文件。
 
-### 2. 上传文件
+### 2. 上传文件/部署/结束进程/维护
 在你的本地终端（macOS/Linux）执行：
 ```bash
-scp ./chatroom root@你的VPS_IP:/root/
+scp ./chatroom -P 22 root@你的VPS_IP:/root/
+apk add --no-cache musl libc6-compat
+chmod +x /root/chatroom
+export CHAT_PASSWORD="你的密码"
+export PORT=你的端口号
+./chatroom 测试
+nohup /root/chatroom > /root/chat.log 2>&1 & 后台运行
+pkill chatroom 结束进程
+pkill -9 chatroom 强力结束进程
+ps aux | grep chatroom 检查是否结束进程。如果只看到 grep 这一行，说明 chatroom 已经消失了
+rm chat.db 清空历史/重置密码
+tail -f chat.log 查看运行日志
