@@ -29,12 +29,15 @@ html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-sy
 #msg-input { flex: 1; background: #f0f2f5; border: none; border-radius: 20px; padding: 10px 15px; outline: none; font-size: 15px; max-height: 120px; resize: none; }
 #send-btn { background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; margin-left: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
-.user-item { padding:12px 20px; color:#cdd1db; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.user-item { padding:12px 20px; color:#cdd1db; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; display: flex; align-items: center; gap: 8px; position: relative; }
 .user-item:hover { background: rgba(255,255,255,0.05); }
 .user-item.active { background: var(--accent); color: #fff; }
 .dot { font-size: 10px; }
 .dot.online { color: #48cfad; }
 .dot.offline { color: #666; }
+
+/* 未读消息数字样式 */
+.unread-badge { background: #ff4d4f; color: white; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: bold; margin-left: auto; }
 
 @media (max-width: 680px) {
   #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
@@ -55,7 +58,7 @@ html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-sy
 <div id="nick-modal">
   <div class="modal-box">
     <h3>身份认证</h3>
-    <p style="font-size:12px; color:#666; margin: 5px 0 15px 0;">新账号自动注册，老账号请直接输入</p>
+    <p style="font-size:12px; color:#666; margin: 5px 0 15px 0;">新账号自动注册，老账号请直接登陆</p>
     <input id="nick-input" type="text" maxlength="15" placeholder="设置昵称">
     <input id="nick-pass" type="password" placeholder="个人密码">
     <button id="nick-confirm">进入聊天室</button>
@@ -97,6 +100,9 @@ let allUsers = [];
 const privateHistory = {};
 const publicHistory = [];
 
+// 关键新增：记录每个用户的未读消息数
+const unreadCounts = {};
+
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
 
@@ -135,6 +141,13 @@ function connectWs() {
       if(currentChat === 'public') appendMsgUI(msg);
     } else if(msg.type === 'private') {
       const peer = msg.from === myNick ? msg.to : msg.from;
+      
+      // 核心改进逻辑：处理未读消息计数
+      if (msg.from !== myNick && currentChat !== msg.from) {
+        unreadCounts[msg.from] = (unreadCounts[msg.from] || 0) + 1;
+        updateUserList(); // 收到消息时实时刷新列表以显示数字
+      }
+
       if(!privateHistory[peer]) privateHistory[peer] = [];
       privateHistory[peer].push(msg);
       if(currentChat === peer) appendMsgUI(msg);
@@ -151,18 +164,28 @@ function connectWs() {
 }
 
 function updateUserList() {
-  document.getElementById('user-list').innerHTML = allUsers.map(u => `
-    <div class="user-item ${currentChat === u.name ? 'active' : ''}" onclick="clickUser('${u.name}')">
-      <span class="dot ${u.online ? 'online' : 'offline'}">${u.online ? '●' : '○'}</span>${u.name}
-    </div>
-  `).join('');
+  document.getElementById('user-list').innerHTML = allUsers.map(u => {
+    // 获取当前用户的未读数
+    const count = unreadCounts[u.name] || 0;
+    const badge = count > 0 ? `<span class="unread-badge">[${count}]</span>` : '';
+    
+    return `
+      <div class="user-item ${currentChat === u.name ? 'active' : ''}" onclick="clickUser('${u.name}')">
+        <span class="dot ${u.online ? 'online' : 'offline'}">${u.online ? '●' : '○'}</span>
+        <span style="flex:1">${u.name}</span>
+        ${badge}
+      </div>
+    `;
+  }).join('');
 }
 
 function clickUser(nick) {
   currentChat = nick;
+  // 核心改进逻辑：点击时清除未读计数
+  delete unreadCounts[nick];
+  
   document.getElementById('chat-title').textContent = '私聊: ' + nick;
-  document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
-  updateUserList();
+  updateUserList(); // 立即刷新列表状态
   renderMessages();
   closeSidebar();
 }
