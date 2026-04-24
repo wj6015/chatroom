@@ -1,642 +1,877 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>聊天室</title>
 <style>
-:root{
-  --primary:#5b6abf;
-  --primary-dark:#4a59a8;
-  --sidebar-bg:#1a2332;
-  --sidebar-hover:#253347;
-  --chat-bg:#eef1f6;
-  --msg-other:#fff;
-  --msg-self:#5b6abf;
-  --text:#333;
-  --text-light:#888;
-  --border:#e0e0e0;
-  --danger:#e74c3c;
-  --success:#4caf50;
+/* ===== Reset & Base ===== */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg: #f0f2f5;
+  --sidebar-bg: #1a1d24;
+  --sidebar-header: #13151b;
+  --panel-bg: #ffffff;
+  --header-bg: #1a1d24;
+  --accent: #6c63ff;
+  --accent2: #48cfad;
+  --danger: #e74c3c;
+  --text: #1c1e21;
+  --text-muted: #90949c;
+  --text-light: #cdd1db;
+  --bubble-me: #6c63ff;
+  --bubble-other: #e9ebef;
+  --bubble-me-text: #fff;
+  --bubble-other-text: #1c1e21;
+  --border: #e4e6ea;
+  --input-bg: #f0f2f5;
+  --sidebar-w: 240px;
+  --header-h: 52px;
+  --input-area-h: 68px;
 }
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--chat-bg)}
-button{font-family:inherit}
+html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); }
 
-/* ===== App Container (height set by JS via visualViewport) ===== */
-#app{display:flex;height:100%;height:100vh;overflow:hidden}
+/* ===== Layout ===== */
+#app {
+  display: flex;
+  height: 100%;
+  height: 100dvh;
+}
 
 /* ===== Sidebar ===== */
-#sidebar{
-  width:240px;background:var(--sidebar-bg);color:#c8d6e5;
-  display:flex;flex-direction:column;flex-shrink:0;
-  transition:transform .25s ease;z-index:100;
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  z-index: 200;
+  transition: transform 0.26s cubic-bezier(.4,0,.2,1);
 }
-.sidebar-hd{
-  padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
-  border-bottom:1px solid rgba(255,255,255,.08);font-size:13px;font-weight:600;
-  color:#8899aa;text-transform:uppercase;letter-spacing:.5px;
+#sidebar-header {
+  background: var(--sidebar-header);
+  padding: 0 16px;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
 }
-.sidebar-hd .cnt{color:#5b6abf;font-size:12px;background:rgba(91,106,191,.15);padding:2px 8px;border-radius:10px}
-.sidebar-close{display:none;background:none;border:none;color:#8899aa;font-size:18px;cursor:pointer;padding:2px 6px}
-.sidebar-close:hover{color:#fff}
-#userList{list-style:none;flex:1;overflow-y:auto;padding:6px 0;-webkit-overflow-scrolling:touch}
-#userList::-webkit-scrollbar{width:4px}
-#userList::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:2px}
-#userList li{
-  padding:9px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;
-  font-size:14px;transition:background .12s;
+#sidebar-header .title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .3px;
 }
-#userList li:hover{background:var(--sidebar-hover)}
-#userList li .dot{width:8px;height:8px;background:var(--success);border-radius:50%;flex-shrink:0}
-#userList li.self{color:#5b6abf;font-weight:600}
+#sidebar-header .nick-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#user-list-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+#user-list-wrap::-webkit-scrollbar { width: 4px; }
+#user-list-wrap::-webkit-scrollbar-track { background: transparent; }
+#user-list-wrap::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
 
-/* ===== Overlay ===== */
-#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99}
-#overlay.open{display:block}
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0 8px 2px;
+  transition: background .15s;
+  color: var(--text-light);
+  font-size: 14px;
+  position: relative;
+}
+.user-item:hover { background: rgba(255,255,255,.07); }
+.user-item.active { background: var(--accent); color: #fff; }
+.user-item .avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+.user-item.active .avatar { background: rgba(255,255,255,.25); }
+.user-item .u-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-item .u-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent2);
+  flex-shrink: 0;
+}
+.user-item .u-unread {
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 99px;
+  min-width: 18px;
+  text-align: center;
+}
 
-/* ===== Chat Area ===== */
-#chatArea{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--chat-bg)}
+.section-label {
+  color: #555e6e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 12px 16px 4px;
+}
 
-/* Header - FIXED */
-#chatHeader{
-  height:52px;background:#fff;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;
+/* public channel entry */
+#public-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 4px 8px 2px;
+  color: var(--text-light);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background .15s;
 }
-#menuBtn{
-  display:none;background:none;border:none;font-size:20px;cursor:pointer;
-  color:var(--text);padding:4px 6px;border-radius:6px;
+#public-entry:hover { background: rgba(255,255,255,.07); }
+#public-entry.active { background: var(--accent); color: #fff; }
+#public-entry .pub-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: #2a2d36;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
 }
-#menuBtn:hover{background:#f0f0f0}
-#chatTitle{flex:1;font-weight:600;font-size:15px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.status-dot{width:9px;height:9px;border-radius:50%;background:var(--success);flex-shrink:0;transition:background .3s}
-.status-dot.off{background:var(--danger)}
+#public-entry.active .pub-icon { background: rgba(255,255,255,.2); }
 
-/* Tab Bar - FIXED */
-#tabBar{
-  display:flex;background:#fff;border-bottom:1px solid var(--border);
-  overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;
-  scrollbar-width:none;
+/* ===== Main Area ===== */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--panel-bg);
 }
-#tabBar::-webkit-scrollbar{display:none}
-.tab{
-  padding:9px 14px;font-size:13px;cursor:pointer;white-space:nowrap;
-  border-bottom:2px solid transparent;color:var(--text-light);
-  display:flex;align-items:center;gap:5px;transition:color .12s;flex-shrink:0;
-  user-select:none;
-}
-.tab:hover{color:var(--text)}
-.tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
-.tab .badge{
-  background:var(--danger);color:#fff;border-radius:10px;
-  font-size:11px;padding:1px 6px;font-weight:700;line-height:1.4;
-}
-.tab .x{
-  font-size:15px;color:#bbb;cursor:pointer;margin-left:2px;line-height:1;
-  border-radius:50%;width:18px;height:18px;display:inline-flex;
-  align-items:center;justify-content:center;transition:all .12s;
-}
-.tab .x:hover{color:var(--danger);background:rgba(231,76,60,.1)}
-.tab .lock{font-size:11px;opacity:.6}
 
-/* Messages - SCROLLABLE */
-#messageArea{
-  flex:1;overflow-y:auto;padding:12px 16px;
-  display:flex;flex-direction:column;gap:3px;
-  -webkit-overflow-scrolling:touch;
-  min-height:0; /* critical for flex child to shrink */
+/* ===== Chat Header ===== */
+#chat-header {
+  height: var(--header-h);
+  background: var(--header-bg);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+  z-index: 10;
 }
-#messageArea::-webkit-scrollbar{width:5px}
-#messageArea::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:3px}
-
-.msg{max-width:72%;display:flex;flex-direction:column}
-.msg.self{align-self:flex-end}
-.msg.other{align-self:flex-start}
-.msg.sys{align-self:center;max-width:90%}
-
-.msg .sender{font-size:12px;color:var(--text-light);margin-bottom:2px;cursor:pointer}
-.msg .sender:hover{color:var(--primary)}
-.msg.self .sender{text-align:right}
-
-.msg .bubble{
-  padding:8px 14px;border-radius:16px;font-size:14px;line-height:1.55;
-  word-break:break-word;position:relative;
+#menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  color: #ccc;
+  font-size: 20px;
+  line-height: 1;
+  transition: background .15s;
 }
-.msg.other .bubble{background:var(--msg-other);color:var(--text);border-bottom-left-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
-.msg.self .bubble{background:var(--msg-self);color:#fff;border-bottom-right-radius:4px}
-.msg.sys .bubble{background:none;color:#aaa;font-size:12px;font-style:italic;padding:4px 0;box-shadow:none}
-
-.msg .time{font-size:10px;color:#bbb;margin-top:2px}
-.msg.self .time{text-align:right}
-.msg.sys .time{text-align:center}
-
-.empty-state{text-align:center;color:#c0c0c0;padding:60px 0;font-size:14px}
-
-/* Input Bar - FIXED */
-#inputBar{
-  display:flex;padding:8px 12px 10px;background:#fff;
-  border-top:1px solid var(--border);flex-shrink:0;gap:8px;align-items:center;
+#menu-btn:hover { background: rgba(255,255,255,.1); }
+#chat-title {
+  flex: 1;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-#msgInput{
-  flex:1;border:1px solid var(--border);border-radius:20px;
-  padding:10px 16px;font-size:16px;outline:none;transition:border-color .15s;
-  background:#f8f9fb; /* 16px prevents iOS zoom */
+#chat-status {
+  color: var(--text-muted);
+  font-size: 12px;
 }
-#msgInput:focus{border-color:var(--primary);background:#fff}
-#sendBtn{
-  background:var(--primary);color:#fff;border:none;border-radius:20px;
-  padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;
-  flex-shrink:0;transition:background .12s;
+#online-count {
+  color: var(--accent2);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-#sendBtn:hover{background:var(--primary-dark)}
-#sendBtn:active{transform:scale(.96)}
+#online-count::before {
+  content: '';
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent2);
+}
+
+/* ===== Messages Area ===== */
+#messages-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+#messages-wrap::-webkit-scrollbar { width: 5px; }
+#messages-wrap::-webkit-scrollbar-track { background: transparent; }
+#messages-wrap::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+
+.msg-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 100%;
+  animation: fadeIn .18s ease;
+}
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; } }
+.msg-row.me { flex-direction: row-reverse; }
+.msg-row .avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+.msg-row .bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: min(70%, 420px);
+}
+.msg-row.me .bubble-wrap { align-items: flex-end; }
+.msg-row .sender {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+  padding: 0 4px;
+}
+.msg-row.me .sender { text-align: right; }
+.bubble {
+  padding: 9px 13px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  position: relative;
+}
+.msg-row:not(.me) .bubble {
+  background: var(--bubble-other);
+  color: var(--bubble-other-text);
+  border-bottom-left-radius: 4px;
+}
+.msg-row.me .bubble {
+  background: var(--bubble-me);
+  color: var(--bubble-me-text);
+  border-bottom-right-radius: 4px;
+}
+.bubble .ts {
+  font-size: 10px;
+  opacity: .6;
+  margin-top: 3px;
+  display: block;
+  text-align: right;
+}
+.system-msg {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 0;
+  user-select: none;
+}
+
+/* ===== Input Area ===== */
+#input-area {
+  height: var(--input-area-h);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+  background: var(--panel-bg);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  /* iOS safe area */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+#msg-input {
+  flex: 1;
+  background: var(--input-bg);
+  border: 1.5px solid transparent;
+  border-radius: 22px;
+  padding: 10px 16px;
+  font-size: 14px;
+  outline: none;
+  resize: none;
+  max-height: 100px;
+  height: 42px;
+  overflow-y: auto;
+  transition: border-color .2s;
+  font-family: inherit;
+  line-height: 1.4;
+  -webkit-appearance: none;
+}
+#msg-input:focus { border-color: var(--accent); }
+#send-btn {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s, transform .1s;
+  color: white;
+}
+#send-btn:hover { background: #5853e0; }
+#send-btn:active { transform: scale(.92); }
+#send-btn svg { width: 18px; height: 18px; fill: #fff; }
+
+/* ===== Overlay (mobile sidebar) ===== */
+#overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 190;
+}
 
 /* ===== Nick Modal ===== */
-#nickModal{
-  position:fixed;inset:0;background:rgba(0,0,0,.5);
-  display:flex;align-items:center;justify-content:center;z-index:1000;
+#nick-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
-#nickModal.hidden{display:none}
-.modal-box{
-  background:#fff;padding:30px 26px;border-radius:16px;
-  width:90%;max-width:340px;text-align:center;
-  box-shadow:0 20px 60px rgba(0,0,0,.25);
+#nick-modal.hidden { display: none; }
+.modal-box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 24px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
 }
-.modal-box h3{margin-bottom:8px;font-size:20px;color:var(--text)}
-.modal-box p{font-size:13px;color:var(--text-light);margin-bottom:18px}
-.modal-box input{
-  width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:10px;
-  font-size:16px;outline:none;text-align:center;transition:border-color .15s;
+.modal-box h2 { font-size: 19px; margin-bottom: 6px; color: var(--text); }
+.modal-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; }
+.modal-box input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .2s;
+  font-family: inherit;
 }
-.modal-box input:focus{border-color:var(--primary)}
-.modal-box button{
-  width:100%;padding:12px;margin-top:14px;background:var(--primary);
-  color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;
-  cursor:pointer;transition:background .12s;
+.modal-box input:focus { border-color: var(--accent); }
+.modal-box button {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s;
 }
-.modal-box button:hover{background:var(--primary-dark)}
-.modal-box .err{color:var(--danger);font-size:13px;margin-top:10px;min-height:18px}
+.modal-box button:hover { background: #5853e0; }
+.modal-err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+/* ===== Toast ===== */
+#toast {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-16px);
+  background: #333;
+  color: #fff;
+  padding: 9px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  white-space: nowrap;
+}
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ===== Connection banner ===== */
+#conn-banner {
+  display: none;
+  background: #e74c3c;
+  color: #fff;
+  text-align: center;
+  font-size: 12px;
+  padding: 5px;
+  flex-shrink: 0;
+}
 
 /* ===== Mobile ===== */
-@media(max-width:768px){
-  #menuBtn{display:block}
-  #sidebar{
-    position:fixed;top:0;left:0;bottom:0;width:280px;z-index:100;
-    transform:translateX(-100%);
+@media (max-width: 680px) {
+  #menu-btn { display: flex; }
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    transform: translateX(-100%);
   }
-  #sidebar.open{transform:translateX(0)}
-  .sidebar-close{display:block}
-  .msg{max-width:85%}
-  #inputBar{padding:6px 10px 8px}
-  #messageArea{padding:10px 10px}
-}
-
-@media(prefers-reduced-motion:reduce){
-  *{animation:none!important;transition-duration:.01ms!important}
+  #sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,.35);
+  }
+  #overlay.show { display: block; }
+  .msg-row .bubble-wrap { max-width: min(80%, 320px); }
+  #input-area { padding: 0 10px; gap: 8px; padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
 </style>
 </head>
 <body>
 
-<!-- Nickname Modal -->
-<div id="nickModal">
+<!-- Nick Modal -->
+<div id="nick-modal">
   <div class="modal-box">
-    <h3>💬 加入聊天室</h3>
-    <p>输入昵称开始聊天</p>
-    <input type="text" id="nickInput" placeholder="你的昵称" maxlength="20" autocomplete="off" autocapitalize="off">
-    <button onclick="setNick()">加入聊天</button>
-    <div class="err" id="nickError"></div>
+    <h2>👋 设置昵称</h2>
+    <p>请输入你的聊天昵称（2-20字符）</p>
+    <input id="nick-input" type="text" maxlength="20" placeholder="你的昵称" autocomplete="off" />
+    <button id="nick-confirm">进入聊天室</button>
+    <div class="modal-err" id="nick-err"></div>
   </div>
 </div>
 
-<!-- Sidebar Overlay -->
-<div id="overlay" onclick="closeSidebar()"></div>
+<!-- Toast -->
+<div id="toast"></div>
 
-<!-- Sidebar -->
-<aside id="sidebar">
-  <div class="sidebar-hd">
-    <span>在线用户 <span class="cnt" id="userCount">0</span></span>
-    <button class="sidebar-close" onclick="closeSidebar()">✕</button>
-  </div>
-  <ul id="userList"></ul>
-</aside>
+<!-- Main App -->
+<div id="app">
 
-<!-- Chat Area -->
-<main id="chatArea">
-  <header id="chatHeader">
-    <button id="menuBtn" onclick="toggleSidebar()">☰</button>
-    <span id="chatTitle">公开频道</span>
-    <span id="connStatus" class="status-dot"></span>
-  </header>
-  <div id="tabBar"></div>
-  <div id="messageArea"></div>
-  <div id="inputBar">
-    <input type="text" id="msgInput" placeholder="发送消息..." autocomplete="off" autocapitalize="off">
-    <button id="sendBtn" onclick="sendMessage()">发送</button>
+  <!-- Overlay (mobile) -->
+  <div id="overlay"></div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span class="title">💬 聊天室</span>
+      <span class="nick-badge" id="my-nick-badge">未登录</span>
+    </div>
+    <div id="user-list-wrap">
+      <div class="section-label">频道</div>
+      <div id="public-entry" class="active">
+        <div class="pub-icon">＃</div>
+        <span>公开频道</span>
+      </div>
+      <div class="section-label">在线用户</div>
+      <div id="user-list"></div>
+    </div>
   </div>
-</main>
+
+  <!-- Main Chat Panel -->
+  <div id="main">
+    <div id="conn-banner">⚠ 连接已断开，正在重连…</div>
+    <div id="chat-header">
+      <button id="menu-btn" aria-label="菜单">☰</button>
+      <div style="flex:1;min-width:0;">
+        <div id="chat-title">公开频道</div>
+      </div>
+      <div id="online-count">0 人在线</div>
+    </div>
+    <div id="messages-wrap" role="log" aria-live="polite"></div>
+    <div id="input-area">
+      <textarea id="msg-input" placeholder="发送消息…" rows="1" maxlength="2000"></textarea>
+      <button id="send-btn" aria-label="发送">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+</div>
 
 <script>
+'use strict';
+
 // ===== State =====
-var ws = null;
-var myNick = '';
-var nickConfirmed = false;
-var currentTab = 'public';
-var conversations = { 'public': { messages: [], unread: 0 } };
-var onlineUsers = [];
-var reconnectTimer = null;
+let myNick = '';
+let currentChat = 'public'; // 'public' | nick string
+let ws = null;
+let reconnectTimer = null;
+let onlineUsers = [];
+// unreadMap: nick -> count
+const unreadMap = {};
+// privateHistory: nick -> Message[]
+const privateHistory = {};
+// publicHistory: Message[]
+const publicHistory = [];
+// publicRendered flag
+let publicLoaded = false;
 
 // ===== DOM =====
-var msgArea = document.getElementById('messageArea');
-var msgInput = document.getElementById('msgInput');
-var tabBar = document.getElementById('tabBar');
-var userListEl = document.getElementById('userList');
-var chatTitle = document.getElementById('chatTitle');
-var connStatus = document.getElementById('connStatus');
-var nickModal = document.getElementById('nickModal');
-var sidebar = document.getElementById('sidebar');
-var overlay = document.getElementById('overlay');
-var app = document.getElementById('app');
-var wsUrl = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws';
+const nickModal   = document.getElementById('nick-modal');
+const nickInput   = document.getElementById('nick-input');
+const nickConfirm = document.getElementById('nick-confirm');
+const nickErr     = document.getElementById('nick-err');
+const myNickBadge = document.getElementById('my-nick-badge');
+const sidebar     = document.getElementById('sidebar');
+const overlay     = document.getElementById('overlay');
+const menuBtn     = document.getElementById('menu-btn');
+const publicEntry = document.getElementById('public-entry');
+const userList    = document.getElementById('user-list');
+const chatTitle   = document.getElementById('chat-title');
+const onlineCnt   = document.getElementById('online-count');
+const messagesWrap= document.getElementById('messages-wrap');
+const msgInput    = document.getElementById('msg-input');
+const sendBtn     = document.getElementById('send-btn');
+const connBanner  = document.getElementById('conn-banner');
+const toast       = document.getElementById('toast');
 
-// ===== visualViewport: Fix keyboard covering input =====
-function updateAppHeight() {
-  if (window.visualViewport) {
-    app.style.height = window.visualViewport.height + 'px';
-  }
+// ===== Toast =====
+let toastTimer = null;
+function showToast(msg, duration=2500) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', function() {
-    updateAppHeight();
-    // Scroll messages to bottom when keyboard appears
-    setTimeout(function() { scrollMessages(true); }, 50);
-  });
-  // Prevent iOS page scroll bounce
-  window.visualViewport.addEventListener('scroll', function() {
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-  });
-}
-updateAppHeight();
 
-// Fallback: also listen to window resize
-window.addEventListener('resize', function() {
-  if (!window.visualViewport) {
-    app.style.height = window.innerHeight + 'px';
-  }
+// ===== Sidebar Toggle (mobile) =====
+menuBtn.addEventListener('click', () => {
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('show');
 });
+overlay.addEventListener('click', closeSidebar);
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  overlay.classList.remove('show');
+}
 
-// Prevent rubber-band scrolling on iOS (only allow messageArea to scroll)
-document.addEventListener('touchmove', function(e) {
-  if (!e.target.closest('#messageArea') && !e.target.closest('#userList')) {
-    e.preventDefault();
+// ===== Nick Modal =====
+nickInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); doSetNick(); }
+});
+nickConfirm.addEventListener('click', doSetNick);
+
+function doSetNick() {
+  const nick = nickInput.value.trim();
+  if (!nick || nick.length < 2) {
+    nickErr.textContent = '昵称至少2个字符';
+    return;
   }
-}, { passive: false });
+  if (nick.length > 20) {
+    nickErr.textContent = '昵称最多20个字符';
+    return;
+  }
+  nickErr.textContent = '';
+  myNick = nick;
+  myNickBadge.textContent = myNick;
+  nickModal.classList.add('hidden');
+  localStorage.setItem('chatNick', myNick);
+  connectWs();
+}
+
+// Restore nick from localStorage
+const savedNick = localStorage.getItem('chatNick');
+if (savedNick && savedNick.length >= 2) {
+  nickInput.value = savedNick;
+}
 
 // ===== WebSocket =====
-function connect() {
-  if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
-  ws = new WebSocket(wsUrl);
+function connectWs() {
+  if (ws) { ws.close(); ws = null; }
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
 
-  ws.onopen = function() {
-    updateStatus(true);
-    if (myNick) {
-      nickConfirmed = false;
-      conversations = { 'public': { messages: [], unread: 0 } };
-      currentTab = 'public';
-      renderMessages();
-      renderTabs();
-      ws.send(JSON.stringify({ type: 'nick', content: myNick }));
-    }
-  };
+  ws.addEventListener('open', () => {
+    connBanner.style.display = 'none';
+    clearTimeout(reconnectTimer);
+    // Send nick
+    send({ type: 'nick', content: myNick });
+  });
 
-  ws.onmessage = function(e) {
-    var msg;
-    try { msg = JSON.parse(e.data); } catch(_) { return; }
-    handleMessage(msg);
-  };
+  ws.addEventListener('message', e => {
+    try {
+      const msg = JSON.parse(e.data);
+      handleMessage(msg);
+    } catch (_) {}
+  });
 
-  ws.onclose = function() {
-    updateStatus(false);
-    if (nickConfirmed) {
-      conversations['public'].messages.push({
-        type: 'system', content: '连接已断开，正在尝试重新连接...',
-        timestamp: Date.now() / 1000 | 0
-      });
-      renderMessages();
-    }
-    scheduleReconnect();
-  };
+  ws.addEventListener('close', () => {
+    connBanner.style.display = 'block';
+    reconnectTimer = setTimeout(connectWs, 4000);
+  });
 
-  ws.onerror = function() { ws.close(); };
+  ws.addEventListener('error', () => {
+    ws.close();
+  });
 }
 
-function scheduleReconnect() {
-  if (reconnectTimer) return;
-  reconnectTimer = setTimeout(function() {
-    reconnectTimer = null;
-    connect();
-  }, 3000);
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+  }
 }
 
 // ===== Message Handling =====
 function handleMessage(msg) {
   switch (msg.type) {
-    case 'system':
-      if (!nickConfirmed && msg.content && msg.content.indexOf('已被占用') !== -1) {
-        document.getElementById('nickError').textContent = msg.content;
-        nickModal.classList.remove('hidden');
-        myNick = '';
-        return;
-      }
-      conversations['public'].messages.push(msg);
-      confirmNick();
-      renderMessages();
+    case 'online':
+      updateOnlineList(msg.content ? msg.content.split(',').filter(Boolean) : []);
       break;
 
-    case 'online':
-      onlineUsers = msg.content ? msg.content.split(',').filter(function(n){return n}) : [];
-      document.getElementById('userCount').textContent = onlineUsers.length;
-      renderUsers();
-      confirmNick();
+    case 'system':
+      // Show system msg in current channel
+      appendSystemMsg(msg.content);
+      if (msg.content && msg.content.includes('已被占用')) {
+        // Nick conflict: show modal again
+        myNick = '';
+        nickModal.classList.remove('hidden');
+        nickErr.textContent = msg.content;
+      }
       break;
 
     case 'public':
-      conversations['public'].messages.push(msg);
-      if (currentTab !== 'public') conversations['public'].unread++;
-      confirmNick();
-      renderMessages();
-      renderTabs();
+      publicHistory.push(msg);
+      if (currentChat === 'public') {
+        renderPublicMsg(msg, true);
+      }
       break;
 
-    case 'private':
-      var peer = msg.from === myNick ? msg.to : msg.from;
-      var key = 'private:' + peer;
-      if (!conversations[key]) conversations[key] = { messages: [], unread: 0 };
-      conversations[key].messages.push(msg);
-      if (key !== currentTab) conversations[key].unread++;
-      confirmNick();
-      renderMessages();
-      renderTabs();
+    case 'private': {
+      const peer = (msg.from === myNick) ? msg.to : msg.from;
+      if (!privateHistory[peer]) privateHistory[peer] = [];
+      privateHistory[peer].push(msg);
+
+      if (currentChat === peer) {
+        renderPrivateMsg(msg, peer, true);
+      } else {
+        // Unread badge
+        unreadMap[peer] = (unreadMap[peer] || 0) + 1;
+        updateUserListUI();
+        showToast(`💬 ${peer}: ${msg.content.slice(0, 30)}`);
+      }
       break;
+    }
   }
 }
 
-function confirmNick() {
-  if (!nickConfirmed && myNick) {
-    nickConfirmed = true;
-    nickModal.classList.add('hidden');
-  }
+// ===== Online Users =====
+function updateOnlineList(nicks) {
+  onlineUsers = nicks.filter(n => n !== myNick);
+  const count = nicks.length;
+  onlineCnt.innerHTML = '';
+  onlineCnt.textContent = count + ' 人在线';
+  updateUserListUI();
 }
 
-// ===== Send =====
-function sendMessage() {
-  var content = msgInput.value.trim();
-  if (!content || !ws || ws.readyState !== WebSocket.OPEN || !myNick) return;
-  if (content.length > 2000) content = content.substring(0, 2000);
-
-  var msg = { content: content };
-  if (currentTab === 'public') {
-    msg.type = 'public';
-  } else {
-    msg.type = 'private';
-    msg.to = currentTab.replace('private:', '');
+function updateUserListUI() {
+  userList.innerHTML = '';
+  if (onlineUsers.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:#555;font-size:12px;padding:8px 20px;';
+    empty.textContent = '暂无其他用户';
+    userList.appendChild(empty);
+    return;
   }
-  ws.send(JSON.stringify(msg));
-  msgInput.value = '';
-  msgInput.focus();
+  onlineUsers.forEach(nick => {
+    const el = document.createElement('div');
+    el.className = 'user-item' + (currentChat === nick ? ' active' : '');
+    const letter = nick[0].toUpperCase();
+    const unread = unreadMap[nick] || 0;
+    el.innerHTML = `
+      <div class="avatar">${letter}</div>
+      <span class="u-name">${esc(nick)}</span>
+      ${unread > 0 ? `<span class="u-unread">${unread}</span>` : '<span class="u-dot"></span>'}
+    `;
+    el.addEventListener('click', () => {
+      switchTo(nick);
+      closeSidebar();
+    });
+    userList.appendChild(el);
+  });
 }
 
-// ===== Nick =====
-function setNick() {
-  var input = document.getElementById('nickInput');
-  var nick = input.value.trim();
-  var err = document.getElementById('nickError');
-  if (!nick) { err.textContent = '请输入昵称'; return; }
-  if (nick.length > 20) { err.textContent = '昵称最长20个字符'; return; }
-  if (/[,\s]/.test(nick)) { err.textContent = '昵称不能包含逗号或空格'; return; }
-
-  myNick = nick;
-  err.textContent = '';
-
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'nick', content: myNick }));
-  } else {
-    connect();
-  }
-}
-
-// ===== Tabs =====
-function switchTab(tab) {
-  currentTab = tab;
-  if (conversations[tab]) conversations[tab].unread = 0;
-
-  if (tab === 'public') {
+// ===== Switch Channel =====
+function switchTo(channel) {
+  currentChat = channel;
+  // Update sidebar active states
+  publicEntry.classList.toggle('active', channel === 'public');
+  updateUserListUI();
+  // Clear messages panel
+  messagesWrap.innerHTML = '';
+  if (channel === 'public') {
     chatTitle.textContent = '公开频道';
-    msgInput.placeholder = '发送公开消息...';
+    // Re-render public history
+    publicHistory.forEach(m => renderPublicMsg(m, false));
+    scrollBottom();
   } else {
-    var peer = tab.replace('private:', '');
-    chatTitle.textContent = '私聊: ' + peer;
-    msgInput.placeholder = '对 ' + peer + ' 说...';
+    chatTitle.textContent = `私聊 · ${channel}`;
+    unreadMap[channel] = 0;
+    updateUserListUI();
+    // Re-render private history for this peer
+    const hist = privateHistory[channel] || [];
+    hist.forEach(m => renderPrivateMsg(m, channel, false));
+    scrollBottom();
   }
-  renderMessages();
-  renderTabs();
   msgInput.focus();
+}
+
+publicEntry.addEventListener('click', () => {
+  switchTo('public');
   closeSidebar();
-}
-
-function openPrivateChat(nick) {
-  if (nick === myNick) return;
-  var key = 'private:' + nick;
-  if (!conversations[key]) conversations[key] = { messages: [], unread: 0 };
-  switchTab(key);
-}
-
-function closeTab(tab) {
-  if (tab === 'public') return;
-  delete conversations[tab];
-  if (currentTab === tab) switchTab('public');
-  else renderTabs();
-}
-
-// ===== Scroll =====
-function scrollMessages(force) {
-  var atBottom = msgArea.scrollTop + msgArea.clientHeight >= msgArea.scrollHeight - 60;
-  if (force || atBottom) {
-    msgArea.scrollTop = msgArea.scrollHeight;
-  }
-}
-
-// ===== Render Messages =====
-function renderMessages() {
-  var conv = conversations[currentTab];
-  if (!conv || conv.messages.length === 0) {
-    msgArea.innerHTML = '<div class="empty-state">暂无消息</div>';
-    return;
-  }
-
-  var msgs = conv.messages;
-  var atBottom = msgArea.scrollTop + msgArea.clientHeight >= msgArea.scrollHeight - 60;
-
-  var html = '';
-  for (var i = 0; i < msgs.length; i++) {
-    html += renderMsg(msgs[i], i > 0 ? msgs[i - 1] : null);
-  }
-  msgArea.innerHTML = html;
-
-  if (atBottom || (msgs.length > 0 && msgs[msgs.length - 1].from === myNick)) {
-    msgArea.scrollTop = msgArea.scrollHeight;
-  }
-}
-
-function renderMsg(msg, prev) {
-  if (msg.type === 'system') {
-    return '<div class="msg sys"><div class="bubble">' + esc(msg.content) +
-      '</div><div class="time">' + fmtTime(msg.timestamp) + '</div></div>';
-  }
-
-  var self = msg.from === myNick;
-  var cls = self ? 'self' : 'other';
-  var isPrivate = msg.type === 'private';
-
-  var showSender = true;
-  if (prev && prev.type === msg.type && prev.from === msg.from &&
-      prev.to === msg.to && msg.timestamp - prev.timestamp < 120) {
-    showSender = false;
-  }
-
-  var senderHtml = '';
-  if (showSender) {
-    if (!self) {
-      senderHtml = '<div class="sender" data-nick="' + escA(msg.from) + '">' +
-        (isPrivate ? '<span class="lock">🔒</span> ' : '') + esc(msg.from) + '</div>';
-    } else if (isPrivate) {
-      senderHtml = '<div class="sender"><span class="lock">🔒</span> 对 ' + esc(msg.to) + '</div>';
-    }
-  }
-
-  return '<div class="msg ' + cls + '">' + senderHtml +
-    '<div class="bubble">' + esc(msg.content) + '</div>' +
-    (showSender ? '<div class="time">' + fmtTime(msg.timestamp) + '</div>' : '') +
-    '</div>';
-}
-
-// ===== Render Tabs =====
-function renderTabs() {
-  var keys = Object.keys(conversations);
-  var html = '';
-  for (var i = 0; i < keys.length; i++) {
-    var k = keys[i];
-    var active = k === currentTab;
-    var label, closable = false, lock = false;
-
-    if (k === 'public') {
-      label = '公开频道';
-    } else {
-      label = k.replace('private:', '');
-      closable = true;
-      lock = true;
-    }
-
-    var unread = conversations[k].unread;
-    var badge = unread > 0 ? '<span class="badge">' + unread + '</span>' : '';
-    var closeHtml = closable ? '<span class="x" data-close="' + escA(k) + '">✕</span>' : '';
-    var lockHtml = lock ? '<span class="lock">🔒</span>' : '';
-
-    html += '<div class="tab' + (active ? ' active' : '') + '" data-tab="' + escA(k) + '">' +
-      lockHtml + esc(label) + badge + closeHtml + '</div>';
-  }
-  tabBar.innerHTML = html;
-
-  var activeTab = tabBar.querySelector('.tab.active');
-  if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-}
-
-// ===== Render Users =====
-function renderUsers() {
-  var html = '';
-  for (var i = 0; i < onlineUsers.length; i++) {
-    var nick = onlineUsers[i];
-    var isSelf = nick === myNick;
-    html += '<li data-nick="' + escA(nick) + '"' + (isSelf ? ' class="self"' : '') + '>' +
-      '<span class="dot"></span><span>' + esc(nick) + (isSelf ? ' (我)' : '') + '</span></li>';
-  }
-  userListEl.innerHTML = html;
-}
-
-// ===== Sidebar =====
-function toggleSidebar() {
-  sidebar.classList.toggle('open');
-  overlay.classList.toggle('open');
-}
-
-function closeSidebar() {
-  sidebar.classList.remove('open');
-  overlay.classList.remove('open');
-}
-
-// ===== Status =====
-function updateStatus(ok) {
-  connStatus.className = 'status-dot' + (ok ? '' : ' off');
-}
-
-// ===== Utilities =====
-function esc(s) {
-  if (!s) return '';
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-function escA(s) {
-  if (!s) return '';
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-function fmtTime(ts) {
-  if (!ts) return '';
-  var d = new Date(ts * 1000);
-  var now = new Date();
-  var h = String(d.getHours()).padStart(2, '0');
-  var m = String(d.getMinutes()).padStart(2, '0');
-  if (d.toDateString() !== now.toDateString()) {
-    return (d.getMonth()+1) + '/' + d.getDate() + ' ' + h + ':' + m;
-  }
-  return h + ':' + m;
-}
-
-// ===== Event Delegation =====
-tabBar.addEventListener('click', function(e) {
-  if (e.target.classList.contains('x')) {
-    closeTab(e.target.dataset.close);
-    return;
-  }
-  var tab = e.target.closest('.tab');
-  if (tab && tab.dataset.tab) switchTab(tab.dataset.tab);
 });
 
-userListEl.addEventListener('click', function(e) {
-  var li = e.target.closest('li');
-  if (li && li.dataset.nick) openPrivateChat(li.dataset.nick);
-});
+// ===== Render Public Msg =====
+function renderPublicMsg(msg, scroll) {
+  const isMe = msg.from === myNick;
+  const el = buildBubble(msg.from, msg.content, msg.timestamp, isMe);
+  messagesWrap.appendChild(el);
+  if (scroll) scrollBottom();
+}
 
-msgArea.addEventListener('click', function(e) {
-  var sender = e.target.closest('.sender');
-  if (sender && sender.dataset.nick) openPrivateChat(sender.dataset.nick);
-});
+// ===== Render Private Msg =====
+function renderPrivateMsg(msg, peer, scroll) {
+  const isMe = msg.from === myNick;
+  const el = buildBubble(msg.from, msg.content, msg.timestamp, isMe);
+  messagesWrap.appendChild(el);
+  if (scroll) scrollBottom();
+}
 
-msgInput.addEventListener('keydown', function(e) {
+// ===== Build Bubble =====
+function buildBubble(from, content, ts, isMe) {
+  const row = document.createElement('div');
+  row.className = 'msg-row' + (isMe ? ' me' : '');
+
+  const letter = (from || '?')[0].toUpperCase();
+  const timeStr = formatTime(ts);
+
+  row.innerHTML = `
+    <div class="avatar">${esc(letter)}</div>
+    <div class="bubble-wrap">
+      ${!isMe ? `<span class="sender">${esc(from)}</span>` : ''}
+      <div class="bubble">
+        ${esc(content)}
+        <span class="ts">${timeStr}</span>
+      </div>
+    </div>
+  `;
+  return row;
+}
+
+function appendSystemMsg(text) {
+  const el = document.createElement('div');
+  el.className = 'system-msg';
+  el.textContent = text;
+  messagesWrap.appendChild(el);
+  scrollBottom();
+}
+
+// ===== Send Message =====
+function doSend() {
+  const content = msgInput.value.trim();
+  if (!content) return;
+  if (!myNick) return;
+
+  if (currentChat === 'public') {
+    send({ type: 'public', content });
+  } else {
+    send({ type: 'private', to: currentChat, content });
+  }
+  msgInput.value = '';
+  autoResize();
+  msgInput.focus();
+}
+
+sendBtn.addEventListener('click', doSend);
+msgInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    sendMessage();
+    doSend();
   }
 });
 
-document.getElementById('nickInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    setNick();
-  }
-});
+// ===== Auto-resize textarea =====
+function autoResize() {
+  msgInput.style.height = 'auto';
+  msgInput.style.height = Math.min(msgInput.scrollHeight, 100) + 'px';
+}
+msgInput.addEventListener('input', autoResize);
 
-// ===== Init =====
-document.getElementById('nickInput').focus();
+// ===== Scroll to Bottom =====
+function scrollBottom() {
+  requestAnimationFrame(() => {
+    messagesWrap.scrollTop = messagesWrap.scrollHeight;
+  });
+}
+
+// ===== Helpers =====
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const pad = n => String(n).padStart(2, '0');
+  if (isToday) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ===== iOS: prevent input toolbar from pushing layout =====
+// Fix: always keep input area in view when virtual keyboard opens
+if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+  msgInput.addEventListener('focus', () => {
+    setTimeout(scrollBottom, 350);
+  });
+  // Prevent window scroll caused by keyboard
+  document.body.addEventListener('touchmove', e => {
+    if (e.target === document.body) e.preventDefault();
+  }, { passive: false });
+}
+
+// ===== Init: show nick modal =====
+nickModal.classList.remove('hidden');
+nickInput.focus();
 </script>
 </body>
 </html>
+</parameter>
+</invoke>
