@@ -67,32 +67,23 @@ func (h *Hub) run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
+			// 不在此处广播，等设置昵称后再广播
 
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
-				nick := client.nick
 				delete(h.clients, client)
-				if nick != "" {
-					delete(h.nickMap, nick)
+				if client.nick != "" {
+					delete(h.nickMap, client.nick)
 				}
 				close(client.send)
 				client.cancel()
-				h.mu.Unlock()
-
-				if nick != "" {
-					broadcastOnline()
-					h.broadcast <- Message{
-						Type:      "system",
-						Content:   nick + " 离开了聊天室",
-						Timestamp: time.Now().Unix(),
-					}
-				}
-			} else {
-				h.mu.Unlock()
 			}
+			h.mu.Unlock()
+			broadcastOnline()
 
 		case msg := <-h.broadcast:
+			// 只保存公共消息（私聊在 readPump 单独处理和保存）
 			if msg.Type == "public" {
 				saveMessage(msg)
 			}
@@ -145,6 +136,8 @@ func saveMessage(msg Message) {
 	}
 }
 
+// getHistory 获取历史消息：公共消息 + 当前用户参与的私聊消息
+// 私聊消息严格隔离，只返回与 nick 有关的记录
 func getHistory(nick string, limit int) []Message {
 	rows, err := db.Query(
 		`SELECT type, sender, receiver, content, timestamp FROM messages
@@ -193,20 +186,19 @@ func (c *Client) readPump(ctx context.Context) {
 			if newNick == "" {
 				continue
 			}
-			if len([]rune(newNick)) > 20 {
-				select {
-				case c.send <- Message{Type: "system", Content: "昵称长度不能超过20个字符", Timestamp: time.Now().Unix()}:
-				default:
-				}
-				continue
-			}
-
 			oldNick := c.nick
+
 			hub.mu.Lock()
+			// 检查昵称是否被占用（不允许重复昵称）
 			if existing, taken := hub.nickMap[newNick]; taken && existing != c {
 				hub.mu.Unlock()
+				errMsg := Message{
+					Type:      "system",
+					Content:   "昵称 "" + newNick + "" 已被占用，请换一个",
+					Timestamp: time.Now().Unix(),
+				}
 				select {
-				case c.send <- Message{Type: "system", Content: "昵称 \"" + newNick + "\" 已被占用，请换一个", Timestamp: time.Now().Unix()}:
+				case c.send <- errMsg:
 				default:
 				}
 				continue
@@ -218,38 +210,38 @@ func (c *Client) readPump(ctx context.Context) {
 			hub.nickMap[c.nick] = c
 			hub.mu.Unlock()
 
-			// 昵称设置后发送历史（同步，确保顺序）
-			history := getHistory(c.nick, 80)
-			for _, m := range history {
-				select {
-				case c.send <- m:
-				default:
+			// 昵称设置完毕后，立即发送历史记录（含私聊隔离）
+			go func(nick string) {
+				history := getHistory(nick, 60)
+				for _, m := range history {
+					select {
+					case c.send <- m:
+					default:
+					}
 				}
-			}
+			}(c.nick)
 
 			broadcastOnline()
 
-			if oldNick == "" {
-				hub.broadcast <- Message{Type: "system", Content: newNick + " 加入了聊天室", Timestamp: time.Now().Unix()}
-			} else {
-				hub.broadcast <- Message{Type: "system", Content: oldNick + " 改名为 " + newNick, Timestamp: time.Now().Unix()}
+			// 广播改名通知
+			if oldNick != "" {
+				sysMsg := Message{
+					Type:      "system",
+					Content:   oldNick + " 改名为 " + newNick,
+					Timestamp: time.Now().Unix(),
+				}
+				hub.broadcast <- sysMsg
 			}
 
 		case "public":
-			if c.nick == "" || strings.TrimSpace(msg.Content) == "" {
+			if c.nick == "" || msg.Content == "" {
 				continue
-			}
-			if len(msg.Content) > 2000 {
-				msg.Content = msg.Content[:2000]
 			}
 			hub.broadcast <- msg
 
 		case "private":
-			if c.nick == "" || strings.TrimSpace(msg.Content) == "" || msg.To == "" {
+			if c.nick == "" || msg.Content == "" || msg.To == "" {
 				continue
-			}
-			if len(msg.Content) > 2000 {
-				msg.Content = msg.Content[:2000]
 			}
 			msg.From = c.nick
 
@@ -258,21 +250,29 @@ func (c *Client) readPump(ctx context.Context) {
 			hub.mu.RUnlock()
 
 			if exists {
+				// ✅ 修复：同时发给接收者和发送者（两个独立 select，不再互斥）
 				select {
 				case target.send <- msg:
 				default:
 					log.Printf("Private msg drop: target %s channel full", msg.To)
 				}
+				// 如果是发给自己以外的人，发送者也要收到自己的消息（回显）
 				if target != c {
 					select {
 					case c.send <- msg:
 					default:
 					}
 				}
+				// 保存私聊记录
 				saveMessage(msg)
 			} else {
+				errMsg := Message{
+					Type:      "system",
+					Content:   "用户 " + msg.To + " 不在线",
+					Timestamp: time.Now().Unix(),
+				}
 				select {
-				case c.send <- Message{Type: "system", Content: "用户 " + msg.To + " 不在线", Timestamp: time.Now().Unix()}:
+				case c.send <- errMsg:
 				default:
 				}
 			}
@@ -316,7 +316,9 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	opts := &websocket.AcceptOptions{InsecureSkipVerify: true}
+	opts := &websocket.AcceptOptions{
+		InsecureSkipVerify: true,
+	}
 	conn, err := websocket.Accept(w, r, opts)
 	if err != nil {
 		return
@@ -326,11 +328,12 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	client := &Client{
 		conn:   conn,
 		nick:   "",
-		send:   make(chan Message, 64),
+		send:   make(chan Message, 32),
 		cancel: cancel,
 	}
 
 	hub.register <- client
+
 	go client.writePump(ctx)
 	client.readPump(ctx)
 }
@@ -353,7 +356,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(1) // SQLite WAL 模式下单写连接足够，节省内存
 	db.SetMaxIdleConns(1)
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS messages (
@@ -364,9 +367,9 @@ func main() {
 		content TEXT,
 		timestamp INTEGER
 	)`)
+	// 复合索引：加速私聊历史查询
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_time ON messages(timestamp)`)
-	db.Exec(`CREATE INDEX IF NOT EXISTS idx_private_sender ON messages(type, sender)`)
-	db.Exec(`CREATE INDEX IF NOT EXISTS idx_private_receiver ON messages(type, receiver)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_private ON messages(type, sender, receiver)`)
 
 	hub = initHub()
 	go hub.run()
@@ -396,7 +399,6 @@ func main() {
 					Path:     "/",
 					MaxAge:   86400 * 7,
 					HttpOnly: true,
-					SameSite: http.SameSiteLaxMode,
 				})
 				http.Redirect(w, r, "/", http.StatusSeeOther)
 				return
@@ -404,6 +406,7 @@ func main() {
 			http.Redirect(w, r, "/login?error=1", http.StatusSeeOther)
 			return
 		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte(loginHTML))
 	})
@@ -422,13 +425,13 @@ const loginHTML = `<!DOCTYPE html>
 <title>聊天室登录</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#5b6abf,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center}
+body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center}
 .box{background:white;padding:32px 28px;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,0.2);width:90%;max-width:360px}
 h2{margin-bottom:22px;color:#333;text-align:center;font-size:22px}
 input{width:100%;padding:13px 14px;margin:8px 0;border:2px solid #e0e0e0;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s}
-input:focus{border-color:#5b6abf}
-button{width:100%;padding:13px;background:#5b6abf;color:white;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:10px;transition:background .2s}
-button:hover{background:#4a59a8}
+input:focus{border-color:#667eea}
+button{width:100%;padding:13px;background:#667eea;color:white;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:10px;transition:background .2s}
+button:hover{background:#5568d3}
 .error{color:#e74c3c;text-align:center;margin-top:12px;font-size:13px;min-height:18px}
 </style>
 </head>
