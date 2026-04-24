@@ -1,133 +1,35 @@
-# 极简实时聊天室 (单端口 10699 版本)
+import os
 
-为 128MB 内存 Alpine Linux NAT VPS 极致优化的 WebSocket 聊天室。
+# 定义README内容
+readme_content = """# 🚀 极简私人云端聊天室 (Ultra-Lightweight Chatroom)
 
-## 特性
+这是一个专为 **低配 VPS**（如 64M/128M 内存的 NAT VPS）设计的轻量级即时通讯系统。采用 Go 语言开发，具备高性能、低延迟和强隐私保护的特点。
 
-- **单端口运行**: 只使用 10699 TCP 端口
-- **极致轻量**: 运行内存 < 64MB，支持 50+ 并发连接
-- **无需客户端**: 纯 Web 访问，支持手机/PC
-- **密码保护**: 入口页面密码认证
-- **匿名/昵称**: 可匿名聊天，也可设置昵称
-- **私信功能**: 点击在线用户列表即可私信
-- **历史记录**: 保留最近 30 条消息
-- **零配置**: 单文件 SQLite 数据库
+## ✨ 核心特性
 
-## 系统要求
+* **极低资源占用**：在 Alpine Linux 环境下运行仅需约 10MB 内存，非常适合 64M 内存的极小机型。
+* **双重身份认证**：
+    * **第一层 (门禁)**：全局访问密码，过滤非授权用户。
+    * **第二层 (身份)**：个人昵称 + 密码。新昵称自动注册，老昵称验密登录。
+* **隐私隔离**：私聊记录基于“昵称+密码”双重绑定，即便退出后他人冒用相同昵称，只要密码不对也无法查看历史记录。
+* **三段式 Web UI**：
+    * 固定顶栏（状态显示）。
+    * 自适应消息区（流畅滚动，不遮挡）。
+    * 固定底部输入框（针对移动端软键盘进行了优化）。
+* **全静态链接编译**：针对 Alpine Linux 的 `musl libc` 环境进行了特殊处理，解决 `fcntl64` 等兼容性报错。
 
-- Alpine Linux (或任何 Linux)
-- 128MB+ 内存
-- 512MB+ 存储
-- **1个可用 TCP 端口 (默认 10699)**
-- Go 1.21+ (仅编译时需要)
+---
 
-## 部署步骤
+## 🛠 部署指南
 
-### 1. 上传文件到 VPS
+### 1. 编译构建
+本项目推荐使用 GitHub Actions 进行自动化编译，以获得最佳的 Alpine 兼容性：
+1. 将代码推送至 GitHub 仓库。
+2. 在项目页面的 **Actions** 标签中找到最新的构建记录。
+3. 下载名为 `chatroom-binary` 的 Artifact。
+4. 解压获得 `chatroom` 二进制文件。
 
-将以下文件上传到 VPS 的 `/root` 目录：
-- `main.go`
-- `go.mod`
-- `static/index.html`
-- `deploy.sh`
-
+### 2. 上传文件
+在你的本地终端（macOS/Linux）执行：
 ```bash
-# 在本地执行
-scp main.go go.mod deploy.sh root@your-vps-ip:/root/
-scp static/index.html root@your-vps-ip:/root/static/
-```
-
-### 2. 执行部署脚本
-
-```bash
-ssh root@your-vps-ip
-cd /root
-chmod +x deploy.sh
-./deploy.sh
-```
-
-### 3. 设置密码并启动
-
-```bash
-# 设置访问密码（重要！）
-export CHAT_PASSWORD=your_secure_password
-
-# 启动服务
-rc-service chatroom start
-
-# 设置开机自启
-rc-update add chatroom default
-```
-
-### 4. 访问聊天室
-
-浏览器打开：
-```
-http://your-nat-domain-or-ip:10699
-```
-
-输入密码后即可进入聊天室。
-
-## 端口说明
-
-本系统只使用 **10699** 一个 TCP 端口：
-- `/` - 聊天室主页面 (HTTP)
-- `/login` - 登录页面 (HTTP)
-- `/ws` - WebSocket 实时通信
-
-所有功能都通过这一个端口提供，无需其他端口。
-
-## 内存优化技术
-
-针对 128MB 小鸡的优化：
-
-1. **使用 coder/websocket**: 比 gorilla/websocket 更轻量
-2. **禁用 WebSocket 压缩**: 节省内存
-3. **积极 GC**: GOGC=20 更频繁回收内存
-4. **硬内存限制**: GOMEMLIMIT=64MiB
-5. **小缓冲设计**: 消息通道缓冲仅 16
-6. **SQLite 优化**: WAL 模式，限制连接池
-
-## 性能指标
-
-- **空闲内存**: ~20MB
-- **每连接占用**: ~2KB
-- **并发支持**: 50-100 人
-- **编译后大小**: ~15MB
-- **只使用 1 个 TCP 端口**
-
-## 自定义配置
-
-编辑 `/opt/chatroom/start.sh` 修改环境变量：
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `PORT` | 监听端口 | **10699** |
-| `CHAT_PASSWORD` | 访问密码 | changeme |
-| `GOGC` | GC 频率 | 20 |
-| `GOMEMLIMIT` | 内存限制 | 64MiB |
-
-**注意**: 如果你的 NAT 提供商分配的端口不是 10699，修改 `PORT` 变量即可。
-
-## Docker 部署（可选）
-
-如果你的 VPS 有 Docker：
-
-```bash
-export CHAT_PASSWORD=your_secure_password
-docker-compose up -d
-```
-
-## 故障排查
-
-1. **无法访问**: 检查 NAT 提供商是否正确转发 10699 端口到 VPS
-2. **端口冲突**: 确保 10699 端口未被其他程序占用
-3. **内存不足**: 增加 SWAP 分区
-4. **连接断开**: 检查防火墙是否放行 10699 端口
-
-## 使用说明
-
-1. **设置昵称**: 进入后在顶部输入框设置昵称
-2. **公开聊天**: 默认在公共频道
-3. **私信**: 点击左侧在线用户列表中的名字
-4. **切换回公共**: 点击输入框上方的 `[切换]` 链接
+scp ./chatroom root@你的VPS_IP:/root/
