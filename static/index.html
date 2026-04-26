@@ -9,7 +9,7 @@
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 :root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; }
 html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; }
-#app { display: flex; width: 100vw; height: 100vh; height: 100svh; background: #f0f2f5; overflow: hidden; }
+#app { display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; background: #f0f2f5; overflow: hidden; }
 #sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; transition: 0.3s; z-index: 200; }
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: #fff; min-height: 0; }
 #chat-header { height: var(--header-h); background: var(--header-bg); color: #fff; display: flex; align-items: center; padding: 0 16px; flex-shrink: 0; z-index: 10; }
