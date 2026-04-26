@@ -7,14 +7,14 @@
 <style>
 /* ===== 样式部分保持不变，仅增加 unread-badge 微调 ===== */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-:root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; --app-height: 100vh; --kb-offset: 0px; }
-html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; }
+:root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; --app-height: 100vh; --composer-h: 60px; }
+html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; position: fixed; inset: 0; }
 #app { display: flex; width: 100vw; height: var(--app-height); background: #f0f2f5; overflow: hidden; }
 #sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; transition: 0.3s; z-index: 200; }
-#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: #fff; min-height: 0; }
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: #fff; min-height: 0; height: 100%; }
 #chat-header { height: var(--header-h); background: var(--header-bg); color: #fff; display: flex; align-items: center; padding: 0 16px; flex-shrink: 0; z-index: 10; }
-#messages-wrap { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 15px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-#input-area { min-height: 60px; background: #fff; border-top: 1px solid var(--border); display: flex; align-items: flex-end; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom) + var(--kb-offset)); flex-shrink: 0; z-index: 100; }
+#messages-wrap { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 15px; padding-bottom: calc(var(--composer-h) + 15px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+#input-area { position: absolute; left: 0; right: 0; bottom: 0; min-height: 60px; background: #fff; border-top: 1px solid var(--border); display: flex; align-items: flex-end; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 100; }
 .msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.15s ease; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
 .msg-row.me { flex-direction: row-reverse; }
@@ -93,27 +93,24 @@ const unreadCounts = {};
 
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
+const inputArea = document.getElementById('input-area');
 
 function updateViewportLayout() {
   const vv = window.visualViewport;
-  const app = document.getElementById('app');
-  if (!app) return;
-
   if (vv) {
     document.documentElement.style.setProperty('--app-height', vv.height + 'px');
-
-    const keyboardOffset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    document.documentElement.style.setProperty('--kb-offset', keyboardOffset + 'px');
   } else {
     document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
-    document.documentElement.style.setProperty('--kb-offset', '0px');
   }
-
+  syncComposerHeight();
   requestAnimationFrame(() => {
-    if (document.activeElement === msgInput) {
-      scrollBottom();
-    }
+    if (document.activeElement === msgInput) scrollBottom();
   });
+}
+
+function syncComposerHeight() {
+  const h = inputArea.offsetHeight || 60;
+  document.documentElement.style.setProperty('--composer-h', h + 'px');
 }
 
 function autoResize() {
@@ -128,6 +125,8 @@ function autoResize() {
   } else {
     msgInput.style.overflowY = 'hidden';
   }
+
+  syncComposerHeight();
 
   if (nearBottom) {
     scrollBottom();
@@ -271,9 +270,18 @@ msgInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDe
 msgInput.addEventListener('input', autoResize);
 
 msgInput.addEventListener('focus', () => {
-  setTimeout(updateViewportLayout, 50);
-  setTimeout(updateViewportLayout, 150);
-  setTimeout(scrollBottom, 200);
+  setTimeout(() => {
+    updateViewportLayout();
+    scrollBottom();
+  }, 50);
+  setTimeout(() => {
+    updateViewportLayout();
+    scrollBottom();
+  }, 150);
+  setTimeout(() => {
+    updateViewportLayout();
+    scrollBottom();
+  }, 300);
 });
 
 msgInput.addEventListener('blur', () => {
@@ -287,7 +295,6 @@ window.addEventListener('orientationchange', () => {
 
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', updateViewportLayout);
-  window.visualViewport.addEventListener('scroll', updateViewportLayout);
 }
 
 updateViewportLayout();
