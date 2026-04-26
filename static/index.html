@@ -14,11 +14,9 @@
   --border: #e4e6ea;
   --sidebar-w: 240px;
   --header-h: 52px;
-  --input-min-h: 60px;
-  --input-max-text-h: 120px;
   --composer-h: 60px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
   --vvh: 100vh;
-  --kb-gap: 0px;
 }
 html, body {
   height: 100%;
@@ -30,7 +28,6 @@ html, body {
 body {
   position: fixed;
   inset: 0;
-  touch-action: manipulation;
 }
 #app {
   display: flex;
@@ -56,7 +53,6 @@ body {
   position: relative;
   background: #fff;
   min-height: 0;
-  height: 100%;
 }
 #chat-header {
   height: var(--header-h);
@@ -73,55 +69,29 @@ body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 15px;
-  padding-bottom: calc(var(--composer-h) + 15px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--composer-h) + 15px + var(--safe-b));
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
+  overscroll-behavior: contain;
 }
-#input-area {
+#composer-shell {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--kb-gap);
-  min-height: var(--input-min-h);
+  bottom: 0;
   background: #fff;
   border-top: 1px solid var(--border);
+  z-index: 500;
+  padding: 10px 12px;
+  padding-bottom: calc(10px + var(--safe-b));
+}
+#input-area {
   display: flex;
   align-items: flex-end;
-  padding: 10px 12px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom));
-  z-index: 500;
+  min-height: 40px;
 }
-#main-composer-placeholder {
-  display: none;
-}
-.msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.15s ease; }
-@keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
-.msg-row.me { flex-direction: row-reverse; }
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  flex-shrink: 0;
-}
-.bubble {
-  max-width: 75%;
-  padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.5;
-  word-break: break-all;
-}
-.msg-row.me .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
-.msg-row:not(.me) .bubble { background: #e9ebef; color: #1c1e21; border-bottom-left-radius: 2px; }
 #msg-input {
   flex: 1;
   background: #f0f2f5;
@@ -132,7 +102,7 @@ body {
   font-size: 15px;
   resize: none;
   overflow-y: hidden;
-  max-height: var(--input-max-text-h);
+  max-height: 120px;
   line-height: 1.5;
 }
 #send-btn {
@@ -151,82 +121,30 @@ body {
   align-self: flex-end;
   font-size: 18px;
 }
-.user-item {
-  padding:12px 20px;
-  color:#cdd1db;
-  cursor:pointer;
-  border-bottom:1px solid #2d323e;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.user-item { padding:12px 20px; color:#cdd1db; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .user-item.active { background: var(--accent); color: #fff; }
 .dot { font-size: 10px; }
 .dot.online { color: #48cfad; }
 .dot.offline { color: #666; }
-.unread-badge {
-  background: #ff4d4f;
-  color: white;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-weight: bold;
-  margin-left: auto;
-}
+.unread-badge { background: #ff4d4f; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: bold; margin-left: auto; }
+.msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.15s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
+.msg-row.me { flex-direction: row-reverse; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0; }
+.bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-break: break-all; }
+.msg-row.me .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
+.msg-row:not(.me) .bubble { background: #e9ebef; color: #1c1e21; border-bottom-left-radius: 2px; }
 @media (max-width: 680px) {
   #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
   #sidebar.open { transform: translateX(0); }
-  #menu-btn {
-    display: block !important;
-    margin-right: 10px;
-    font-size: 20px;
-    background: none;
-    border: none;
-    color: #fff;
-  }
+  #menu-btn { display: block !important; margin-right: 10px; font-size: 20px; background: none; border: none; color: #fff; }
 }
-#overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  display: none;
-  z-index: 150;
-}
+#overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 150; }
 #overlay.show { display: block; }
-#nick-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.85);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.modal-box {
-  background: #fff;
-  padding: 28px;
-  border-radius: 16px;
-  width: 85%;
-  max-width: 320px;
-}
-.modal-box input {
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 10px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  outline: none;
-}
-.modal-box button {
-  width: 100%;
-  padding: 12px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-}
+#nick-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.modal-box { background: #fff; padding: 28px; border-radius: 16px; width: 85%; max-width: 320px; }
+.modal-box input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
+.modal-box button { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -262,13 +180,14 @@ body {
       <div id="chat-title" style="font-weight:bold;">公开频道</div>
     </div>
     <div id="messages-wrap"></div>
-    <div id="main-composer-placeholder"></div>
   </div>
 </div>
 
-<div id="input-area">
-  <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
-  <button id="send-btn">➤</button>
+<div id="composer-shell">
+  <div id="input-area">
+    <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
+    <button id="send-btn">➤</button>
+  </div>
 </div>
 
 <script>
@@ -279,13 +198,25 @@ let allUsers = [];
 const privateHistory = {};
 const publicHistory = [];
 
-// 关键变量
 let lastReadTimes = {};
 const unreadCounts = {};
 
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
-const inputArea = document.getElementById('input-area');
+const composerShell = document.getElementById('composer-shell');
+
+let keyboardOpen = false;
+
+function setViewportHeight() {
+  const vv = window.visualViewport;
+  const h = vv ? vv.height : window.innerHeight;
+  document.documentElement.style.setProperty('--vvh', h + 'px');
+}
+
+function syncComposerHeight() {
+  const h = composerShell.offsetHeight || 60;
+  document.documentElement.style.setProperty('--composer-h', h + 'px');
+}
 
 function scrollBottom() {
   requestAnimationFrame(() => {
@@ -293,44 +224,38 @@ function scrollBottom() {
   });
 }
 
-function syncComposerHeight() {
-  const h = Math.max(60, inputArea.offsetHeight || 60);
-  document.documentElement.style.setProperty('--composer-h', h + 'px');
-}
-
-function updateViewportLayout() {
-  const vv = window.visualViewport;
-  let vh = window.innerHeight;
-  let kbGap = 0;
-
-  if (vv) {
-    vh = vv.height;
-    kbGap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-  }
-
-  document.documentElement.style.setProperty('--vvh', vh + 'px');
-  document.documentElement.style.setProperty('--kb-gap', kbGap + 'px');
-
-  syncComposerHeight();
-
-  requestAnimationFrame(() => {
-    if (document.activeElement === msgInput) {
-      scrollBottom();
-    }
-  });
-}
-
 function autoResize() {
   const nearBottom = messagesWrap.scrollHeight - messagesWrap.scrollTop - messagesWrap.clientHeight < 80;
-
   msgInput.style.height = 'auto';
   msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
   msgInput.style.overflowY = msgInput.scrollHeight > 120 ? 'auto' : 'hidden';
-
   syncComposerHeight();
+  if (nearBottom) scrollBottom();
+}
 
-  if (nearBottom) {
-    scrollBottom();
+function stabilizeFocusView() {
+  setViewportHeight();
+  syncComposerHeight();
+  requestAnimationFrame(() => {
+    messagesWrap.scrollTop = messagesWrap.scrollHeight;
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+  });
+}
+
+function handleKeyboardState() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const delta = window.innerHeight - vv.height;
+  keyboardOpen = delta > 120;
+  setViewportHeight();
+  syncComposerHeight();
+  if (keyboardOpen) {
+    requestAnimationFrame(() => {
+      scrollBottom();
+      window.scrollTo(0, 0);
+    });
   }
 }
 
@@ -360,7 +285,6 @@ function connectWs() {
       const isPublic = msg.type === 'public';
       const peer = isPublic ? 'public' : (msg.from === myNick ? msg.to : msg.from);
       const targetList = isPublic ? publicHistory : (privateHistory[peer] || (privateHistory[peer] = []));
-
       targetList.push(msg);
 
       if (msg.from !== myNick && currentChat !== peer) {
@@ -371,7 +295,14 @@ function connectWs() {
         }
       }
 
-      if(currentChat === peer) appendMsgUI(msg);
+      if(currentChat === peer) {
+        appendMsgUI(msg);
+        if (document.activeElement === msgInput) {
+          setTimeout(stabilizeFocusView, 0);
+          setTimeout(stabilizeFocusView, 80);
+          setTimeout(stabilizeFocusView, 180);
+        }
+      }
     } else if(msg.type === 'system') {
       if(msg.content.includes("密码") || msg.content.includes("别处")) {
         document.getElementById('nick-modal').style.display = 'flex';
@@ -458,7 +389,9 @@ document.getElementById('send-btn').onclick = () => {
   }));
   msgInput.value = '';
   autoResize();
-  msgInput.focus();
+  setTimeout(stabilizeFocusView, 0);
+  setTimeout(stabilizeFocusView, 80);
+  setTimeout(stabilizeFocusView, 180);
 };
 
 document.getElementById('public-entry').onclick = () => clickUser('public');
@@ -479,36 +412,54 @@ msgInput.onkeydown = (e) => {
 msgInput.addEventListener('input', autoResize);
 
 msgInput.addEventListener('focus', () => {
-  setTimeout(updateViewportLayout, 30);
-  setTimeout(updateViewportLayout, 120);
-  setTimeout(updateViewportLayout, 260);
-  setTimeout(scrollBottom, 260);
+  setTimeout(stabilizeFocusView, 0);
+  setTimeout(stabilizeFocusView, 60);
+  setTimeout(stabilizeFocusView, 150);
+  setTimeout(stabilizeFocusView, 260);
+});
+
+msgInput.addEventListener('click', () => {
+  setTimeout(stabilizeFocusView, 0);
+  setTimeout(stabilizeFocusView, 80);
 });
 
 msgInput.addEventListener('blur', () => {
-  setTimeout(updateViewportLayout, 80);
+  setTimeout(() => {
+    setViewportHeight();
+    syncComposerHeight();
+    scrollBottom();
+  }, 80);
 });
 
-window.addEventListener('resize', updateViewportLayout);
+window.addEventListener('resize', () => {
+  setViewportHeight();
+  syncComposerHeight();
+});
+
 window.addEventListener('orientationchange', () => {
-  setTimeout(updateViewportLayout, 100);
+  setTimeout(() => {
+    setViewportHeight();
+    syncComposerHeight();
+    scrollBottom();
+  }, 120);
 });
 
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', updateViewportLayout);
-  window.visualViewport.addEventListener('scroll', updateViewportLayout);
+  window.visualViewport.addEventListener('resize', handleKeyboardState);
+  window.visualViewport.addEventListener('scroll', stabilizeFocusView);
 }
 
 document.addEventListener('touchmove', (e) => {
   const inMessages = e.target.closest('#messages-wrap');
   const inSidebar = e.target.closest('#sidebar');
-  const inInput = e.target.closest('#input-area');
-  if (!inMessages && !inSidebar && !inInput) {
+  const inComposer = e.target.closest('#composer-shell');
+  if (!inMessages && !inSidebar && !inComposer) {
     e.preventDefault();
   }
 }, { passive: false });
 
-updateViewportLayout();
+setViewportHeight();
+syncComposerHeight();
 autoResize();
 </script>
 </body>
