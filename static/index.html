@@ -7,14 +7,14 @@
 <style>
 /* ===== 样式部分保持不变，仅增加 unread-badge 微调 ===== */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-:root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; }
+:root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; --app-height: 100vh; --kb-offset: 0px; }
 html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; }
-#app { display: flex; position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100dvh; background: #f0f2f5; overflow: hidden; }
+#app { display: flex; width: 100vw; height: var(--app-height); background: #f0f2f5; overflow: hidden; }
 #sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; transition: 0.3s; z-index: 200; }
 #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: #fff; min-height: 0; }
 #chat-header { height: var(--header-h); background: var(--header-bg); color: #fff; display: flex; align-items: center; padding: 0 16px; flex-shrink: 0; z-index: 10; }
 #messages-wrap { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 15px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-#input-area { min-height: 60px; background: #fff; border-top: 1px solid var(--border); display: flex; align-items: center; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); flex-shrink: 0; z-index: 100; }
+#input-area { min-height: 60px; background: #fff; border-top: 1px solid var(--border); display: flex; align-items: flex-end; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom) + var(--kb-offset)); flex-shrink: 0; z-index: 100; }
 .msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.15s ease; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
 .msg-row.me { flex-direction: row-reverse; }
@@ -22,8 +22,8 @@ html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-sy
 .bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-break: break-all; }
 .msg-row.me .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
 .msg-row:not(.me) .bubble { background: #e9ebef; color: #1c1e21; border-bottom-left-radius: 2px; }
-#msg-input { flex: 1; background: #f0f2f5; border: none; border-radius: 20px; padding: 10px 15px; outline: none; font-size: 15px; max-height: 120px; resize: none; overflow-y: hidden; }
-#send-btn { background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; margin-left: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#msg-input { flex: 1; background: #f0f2f5; border: none; border-radius: 20px; padding: 10px 15px; outline: none; font-size: 15px; resize: none; overflow-y: auto; max-height: 120px; }
+#send-btn { background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; margin-left: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; align-self: flex-end; }
 .user-item { padding:12px 20px; color:#cdd1db; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .user-item.active { background: var(--accent); color: #fff; }
 .dot { font-size: 10px; }
@@ -74,12 +74,7 @@ html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-sy
     <div id="messages-wrap"></div>
     <div id="input-area">
       <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
-      <button id="send-btn">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-      </button>
+      <button id="send-btn">🚀</button>
     </div>
   </div>
 </div>
@@ -99,17 +94,42 @@ const unreadCounts = {};
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
 
+function updateViewportLayout() {
+  const vv = window.visualViewport;
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  if (vv) {
+    document.documentElement.style.setProperty('--app-height', vv.height + 'px');
+
+    const keyboardOffset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty('--kb-offset', keyboardOffset + 'px');
+  } else {
+    document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+    document.documentElement.style.setProperty('--kb-offset', '0px');
+  }
+
+  requestAnimationFrame(() => {
+    if (document.activeElement === msgInput) {
+      scrollBottom();
+    }
+  });
+}
+
 function autoResize() {
+  const wrap = messagesWrap;
+  const nearBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 80;
+
   msgInput.style.height = 'auto';
+  msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+
   if (msgInput.scrollHeight > 120) {
-    msgInput.style.height = '120px';
     msgInput.style.overflowY = 'auto';
   } else {
-    msgInput.style.height = msgInput.scrollHeight + 'px';
     msgInput.style.overflowY = 'hidden';
   }
-  const wrap = messagesWrap;
-  if (wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 80) {
+
+  if (nearBottom) {
     scrollBottom();
   }
 }
@@ -249,6 +269,29 @@ document.getElementById('menu-btn').onclick = () => {
 document.getElementById('overlay').onclick = closeSidebar;
 msgInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('send-btn').click(); } };
 msgInput.addEventListener('input', autoResize);
+
+msgInput.addEventListener('focus', () => {
+  setTimeout(updateViewportLayout, 50);
+  setTimeout(updateViewportLayout, 150);
+  setTimeout(scrollBottom, 200);
+});
+
+msgInput.addEventListener('blur', () => {
+  setTimeout(updateViewportLayout, 100);
+});
+
+window.addEventListener('resize', updateViewportLayout);
+window.addEventListener('orientationchange', () => {
+  setTimeout(updateViewportLayout, 100);
+});
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateViewportLayout);
+  window.visualViewport.addEventListener('scroll', updateViewportLayout);
+}
+
+updateViewportLayout();
+autoResize();
 </script>
 </body>
 </html>
