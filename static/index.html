@@ -5,38 +5,228 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>宇宙公司聊天室</title>
 <style>
-/* ===== 样式部分保持不变，仅增加 unread-badge 微调 ===== */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-:root { --sidebar-bg: #1a1d24; --header-bg: #1a1d24; --accent: #6c63ff; --text-light: #cdd1db; --border: #e4e6ea; --sidebar-w: 240px; --header-h: 52px; --app-height: 100vh; --composer-h: 60px; }
-html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; position: fixed; inset: 0; }
-#app { display: flex; width: 100vw; height: var(--app-height); background: #f0f2f5; overflow: hidden; }
-#sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); display: flex; flex-direction: column; flex-shrink: 0; transition: 0.3s; z-index: 200; }
-#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; background: #fff; min-height: 0; height: 100%; }
-#chat-header { height: var(--header-h); background: var(--header-bg); color: #fff; display: flex; align-items: center; padding: 0 16px; flex-shrink: 0; z-index: 10; }
-#messages-wrap { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 15px; padding-bottom: calc(var(--composer-h) + 15px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-#input-area { position: absolute; left: 0; right: 0; bottom: 0; min-height: 60px; background: #fff; border-top: 1px solid var(--border); display: flex; align-items: flex-end; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 100; }
+:root {
+  --sidebar-bg: #1a1d24;
+  --header-bg: #1a1d24;
+  --accent: #6c63ff;
+  --text-light: #cdd1db;
+  --border: #e4e6ea;
+  --sidebar-w: 240px;
+  --header-h: 52px;
+  --input-min-h: 60px;
+  --input-max-text-h: 120px;
+  --composer-h: 60px;
+  --vvh: 100vh;
+  --kb-gap: 0px;
+}
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, system-ui, sans-serif;
+  background: #f0f2f5;
+}
+body {
+  position: fixed;
+  inset: 0;
+  touch-action: manipulation;
+}
+#app {
+  display: flex;
+  width: 100vw;
+  height: var(--vvh);
+  background: #f0f2f5;
+  overflow: hidden;
+}
+#sidebar {
+  width: var(--sidebar-w);
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: 0.3s;
+  z-index: 200;
+}
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  background: #fff;
+  min-height: 0;
+  height: 100%;
+}
+#chat-header {
+  height: var(--header-h);
+  background: var(--header-bg);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+#messages-wrap {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 15px;
+  padding-bottom: calc(var(--composer-h) + 15px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+#input-area {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--kb-gap);
+  min-height: var(--input-min-h);
+  background: #fff;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  padding: 10px 12px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 500;
+}
+#main-composer-placeholder {
+  display: none;
+}
 .msg-row { display: flex; gap: 8px; margin-bottom: 4px; animation: fadeIn 0.15s ease; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; } }
 .msg-row.me { flex-direction: row-reverse; }
-.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; flex-shrink: 0; }
-.bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-break: break-all; }
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.bubble {
+  max-width: 75%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-all;
+}
 .msg-row.me .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
 .msg-row:not(.me) .bubble { background: #e9ebef; color: #1c1e21; border-bottom-left-radius: 2px; }
-#msg-input { flex: 1; background: #f0f2f5; border: none; border-radius: 20px; padding: 10px 15px; outline: none; font-size: 15px; resize: none; overflow-y: auto; max-height: 120px; }
-#send-btn { background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; margin-left: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; align-self: flex-end; }
-.user-item { padding:12px 20px; color:#cdd1db; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+#msg-input {
+  flex: 1;
+  background: #f0f2f5;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 15px;
+  outline: none;
+  font-size: 15px;
+  resize: none;
+  overflow-y: hidden;
+  max-height: var(--input-max-text-h);
+  line-height: 1.5;
+}
+#send-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-left: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-end;
+  font-size: 18px;
+}
+.user-item {
+  padding:12px 20px;
+  color:#cdd1db;
+  cursor:pointer;
+  border-bottom:1px solid #2d323e;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .user-item.active { background: var(--accent); color: #fff; }
 .dot { font-size: 10px; }
 .dot.online { color: #48cfad; }
 .dot.offline { color: #666; }
-.unread-badge { background: #ff4d4f; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: bold; margin-left: auto; }
-@media (max-width: 680px) { #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); } #sidebar.open { transform: translateX(0); } #menu-btn { display: block !important; margin-right: 10px; font-size: 20px; background: none; border: none; color: #fff; } }
-#overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 150; }
+.unread-badge {
+  background: #ff4d4f;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: bold;
+  margin-left: auto;
+}
+@media (max-width: 680px) {
+  #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
+  #sidebar.open { transform: translateX(0); }
+  #menu-btn {
+    display: block !important;
+    margin-right: 10px;
+    font-size: 20px;
+    background: none;
+    border: none;
+    color: #fff;
+  }
+}
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: none;
+  z-index: 150;
+}
 #overlay.show { display: block; }
-#nick-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-.modal-box { background: #fff; padding: 28px; border-radius: 16px; width: 85%; max-width: 320px; }
-.modal-box input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
-.modal-box button { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-weight: bold; }
+#nick-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-box {
+  background: #fff;
+  padding: 28px;
+  border-radius: 16px;
+  width: 85%;
+  max-width: 320px;
+}
+.modal-box input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  outline: none;
+}
+.modal-box button {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+}
 </style>
 </head>
 <body>
@@ -72,11 +262,13 @@ html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-sy
       <div id="chat-title" style="font-weight:bold;">公开频道</div>
     </div>
     <div id="messages-wrap"></div>
-    <div id="input-area">
-      <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
-      <button id="send-btn">🚀</button>
-    </div>
+    <div id="main-composer-placeholder"></div>
   </div>
+</div>
+
+<div id="input-area">
+  <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
+  <button id="send-btn">➤</button>
 </div>
 
 <script>
@@ -88,43 +280,52 @@ const privateHistory = {};
 const publicHistory = [];
 
 // 关键变量
-let lastReadTimes = {}; 
+let lastReadTimes = {};
 const unreadCounts = {};
 
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
 const inputArea = document.getElementById('input-area');
 
-function updateViewportLayout() {
-  const vv = window.visualViewport;
-  if (vv) {
-    document.documentElement.style.setProperty('--app-height', vv.height + 'px');
-  } else {
-    document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
-  }
-  syncComposerHeight();
+function scrollBottom() {
   requestAnimationFrame(() => {
-    if (document.activeElement === msgInput) scrollBottom();
+    messagesWrap.scrollTop = messagesWrap.scrollHeight;
   });
 }
 
 function syncComposerHeight() {
-  const h = inputArea.offsetHeight || 60;
+  const h = Math.max(60, inputArea.offsetHeight || 60);
   document.documentElement.style.setProperty('--composer-h', h + 'px');
 }
 
+function updateViewportLayout() {
+  const vv = window.visualViewport;
+  let vh = window.innerHeight;
+  let kbGap = 0;
+
+  if (vv) {
+    vh = vv.height;
+    kbGap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+  }
+
+  document.documentElement.style.setProperty('--vvh', vh + 'px');
+  document.documentElement.style.setProperty('--kb-gap', kbGap + 'px');
+
+  syncComposerHeight();
+
+  requestAnimationFrame(() => {
+    if (document.activeElement === msgInput) {
+      scrollBottom();
+    }
+  });
+}
+
 function autoResize() {
-  const wrap = messagesWrap;
-  const nearBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 80;
+  const nearBottom = messagesWrap.scrollHeight - messagesWrap.scrollTop - messagesWrap.clientHeight < 80;
 
   msgInput.style.height = 'auto';
   msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
-
-  if (msgInput.scrollHeight > 120) {
-    msgInput.style.overflowY = 'auto';
-  } else {
-    msgInput.style.overflowY = 'hidden';
-  }
+  msgInput.style.overflowY = msgInput.scrollHeight > 120 ? 'auto' : 'hidden';
 
   syncComposerHeight();
 
@@ -132,8 +333,6 @@ function autoResize() {
     scrollBottom();
   }
 }
-
-function scrollBottom() { requestAnimationFrame(() => { messagesWrap.scrollTop = messagesWrap.scrollHeight; }); }
 
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
@@ -151,9 +350,9 @@ function connectWs() {
 
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    
+
     if(msg.type === 'read_sync') {
-        lastReadTimes = JSON.parse(msg.content || '{}');
+      lastReadTimes = JSON.parse(msg.content || '{}');
     } else if(msg.type === 'online') {
       allUsers = msg.user_list.filter(u => u.name !== myNick);
       updateUserList();
@@ -161,16 +360,15 @@ function connectWs() {
       const isPublic = msg.type === 'public';
       const peer = isPublic ? 'public' : (msg.from === myNick ? msg.to : msg.from);
       const targetList = isPublic ? publicHistory : (privateHistory[peer] || (privateHistory[peer] = []));
-      
+
       targetList.push(msg);
 
-      // 计算未读：如果不是我发的，且当前没在这个窗口，且时间晚于最后阅读时间
       if (msg.from !== myNick && currentChat !== peer) {
-          const lastTime = lastReadTimes[peer] || 0;
-          if (msg.timestamp > lastTime) {
-              unreadCounts[peer] = (unreadCounts[peer] || 0) + 1;
-              updateUserList();
-          }
+        const lastTime = lastReadTimes[peer] || 0;
+        if (msg.timestamp > lastTime) {
+          unreadCounts[peer] = (unreadCounts[peer] || 0) + 1;
+          updateUserList();
+        }
       }
 
       if(currentChat === peer) appendMsgUI(msg);
@@ -187,7 +385,6 @@ function connectWs() {
 }
 
 function updateUserList() {
-  // 公开频道未读显示
   const pubCount = unreadCounts['public'] || 0;
   const pubBadge = document.getElementById('public-unread');
   pubBadge.style.display = pubCount > 0 ? 'block' : 'none';
@@ -208,11 +405,10 @@ function updateUserList() {
 
 function clickUser(nick) {
   currentChat = nick;
-  // 清除本地未读并通知后端已读
   delete unreadCounts[nick];
   lastReadTimes[nick] = Math.floor(Date.now() / 1000);
   if(ws) ws.send(JSON.stringify({ type: 'read_ack', to: nick }));
-  
+
   document.getElementById('chat-title').textContent = nick === 'public' ? '公开频道' : '私聊: ' + nick;
   updateUserList();
   renderMessages();
@@ -255,8 +451,14 @@ document.getElementById('nick-confirm').onclick = () => {
 document.getElementById('send-btn').onclick = () => {
   const content = msgInput.value.trim();
   if(!content || !ws) return;
-  ws.send(JSON.stringify({ type: currentChat === 'public' ? 'public' : 'private', to: currentChat === 'public' ? '' : currentChat, content: content }));
-  msgInput.value = ''; autoResize(); msgInput.focus();
+  ws.send(JSON.stringify({
+    type: currentChat === 'public' ? 'public' : 'private',
+    to: currentChat === 'public' ? '' : currentChat,
+    content: content
+  }));
+  msgInput.value = '';
+  autoResize();
+  msgInput.focus();
 };
 
 document.getElementById('public-entry').onclick = () => clickUser('public');
@@ -266,26 +468,25 @@ document.getElementById('menu-btn').onclick = () => {
   document.getElementById('overlay').classList.add('show');
 };
 document.getElementById('overlay').onclick = closeSidebar;
-msgInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('send-btn').click(); } };
+
+msgInput.onkeydown = (e) => {
+  if(e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('send-btn').click();
+  }
+};
+
 msgInput.addEventListener('input', autoResize);
 
 msgInput.addEventListener('focus', () => {
-  setTimeout(() => {
-    updateViewportLayout();
-    scrollBottom();
-  }, 50);
-  setTimeout(() => {
-    updateViewportLayout();
-    scrollBottom();
-  }, 150);
-  setTimeout(() => {
-    updateViewportLayout();
-    scrollBottom();
-  }, 300);
+  setTimeout(updateViewportLayout, 30);
+  setTimeout(updateViewportLayout, 120);
+  setTimeout(updateViewportLayout, 260);
+  setTimeout(scrollBottom, 260);
 });
 
 msgInput.addEventListener('blur', () => {
-  setTimeout(updateViewportLayout, 100);
+  setTimeout(updateViewportLayout, 80);
 });
 
 window.addEventListener('resize', updateViewportLayout);
@@ -295,7 +496,17 @@ window.addEventListener('orientationchange', () => {
 
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', updateViewportLayout);
+  window.visualViewport.addEventListener('scroll', updateViewportLayout);
 }
+
+document.addEventListener('touchmove', (e) => {
+  const inMessages = e.target.closest('#messages-wrap');
+  const inSidebar = e.target.closest('#sidebar');
+  const inInput = e.target.closest('#input-area');
+  if (!inMessages && !inSidebar && !inInput) {
+    e.preventDefault();
+  }
+}, { passive: false });
 
 updateViewportLayout();
 autoResize();
