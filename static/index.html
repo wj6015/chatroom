@@ -22,7 +22,7 @@ html, body { height: 100%; width: 100%; overflow: hidden; font-family: -apple-sy
 .bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-break: break-all; }
 .msg-row.me .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
 .msg-row:not(.me) .bubble { background: #e9ebef; color: #1c1e21; border-bottom-left-radius: 2px; }
-#msg-input { flex: 1; background: #f0f2f5; border: none; border-radius: 20px; padding: 10px 15px; outline: none; font-size: 15px; max-height: 120px; resize: none; }
+#msg-input { flex: 1; background: #f0f2f5; border: none; border-radius: 20px; padding: 10px 15px; outline: none; font-size: 15px; max-height: 120px; resize: none; overflow-y: hidden; }
 #send-btn { background: var(--accent); color: #fff; border: none; width: 40px; height: 40px; border-radius: 50%; margin-left: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .user-item { padding:12px 20px; color:#cdd1db; cursor:pointer; border-bottom:1px solid #2d323e; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .user-item.active { background: var(--accent); color: #fff; }
@@ -93,6 +93,21 @@ const unreadCounts = {};
 
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
+
+function autoResize() {
+  msgInput.style.height = 'auto';
+  if (msgInput.scrollHeight > 120) {
+    msgInput.style.height = '120px';
+    msgInput.style.overflowY = 'auto';
+  } else {
+    msgInput.style.height = msgInput.scrollHeight + 'px';
+    msgInput.style.overflowY = 'hidden';
+  }
+  const wrap = messagesWrap;
+  if (wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 80) {
+    scrollBottom();
+  }
+}
 
 function scrollBottom() { requestAnimationFrame(() => { messagesWrap.scrollTop = messagesWrap.scrollHeight; }); }
 
@@ -217,7 +232,7 @@ document.getElementById('send-btn').onclick = () => {
   const content = msgInput.value.trim();
   if(!content || !ws) return;
   ws.send(JSON.stringify({ type: currentChat === 'public' ? 'public' : 'private', to: currentChat === 'public' ? '' : currentChat, content: content }));
-  msgInput.value = ''; msgInput.style.height = 'auto'; msgInput.focus();
+  msgInput.value = ''; autoResize(); msgInput.focus();
 };
 
 document.getElementById('public-entry').onclick = () => clickUser('public');
@@ -228,6 +243,7 @@ document.getElementById('menu-btn').onclick = () => {
 };
 document.getElementById('overlay').onclick = closeSidebar;
 msgInput.onkeydown = (e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('send-btn').click(); } };
+msgInput.addEventListener('input', autoResize);
 </script>
 </body>
 </html>
