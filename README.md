@@ -33,10 +33,10 @@ apk add --no-cache musl libc6-compat
 chmod +x /root/chatroom
 export CHAT_PASSWORD="你的密码"
 export PORT=你的端口号
-./chatroom 测试
-nohup /root/chatroom > /root/chat.log 2>&1 & 后台运行
-pkill chatroom 结束进程
-pkill -9 chatroom 强力结束进程
-ps aux | grep chatroom 检查是否结束进程。如果只看到 grep 这一行，说明 chatroom 已经消失了
-rm chat.db 清空历史/重置密码
-tail -f chat.log 查看运行日志
+./chatroom #测试
+nohup /root/chatroom > /root/chat.log 2>&1 & #后台运行
+pkill chatroom #结束进程
+pkill -9 chatroom #强力结束进程
+ps aux | grep chatroom #检查是否结束进程。如果只看到 grep 这一行，说明 chatroom 已经消失了
+rm chat.db #清空历史/重置密码
+tail -f chat.log #查看运行日志
