@@ -355,16 +355,28 @@ const messagesWrap = document.getElementById('messages-wrap');
 const app = document.getElementById('app');
 
 /*
-  iOS 键盘布局修复：
-  1. 不再让页面本身滚动。
-  2. 使用 visualViewport 的真实可视高度控制 #app。
-  3. 键盘弹出时，#app 高度变成键盘上方区域高度。
-  4. 三段式结构仍然由 flex 负责：
-     header 固定高度；
-     messages-wrap 自动压缩；
-     input-area 始终在底部。
+  ============================================
+  iOS 键盘布局修复 - 优化版
+  ============================================
+  
+  修复目标：
+  1. 保持三段式UI结构（标题栏、消息列表、输入区域）
+  2. 解决软键盘弹出时输入框漂移问题
+  3. 消除UI闪烁和抖动
+  
+  优化策略：
+  1. 移除强制 window.scrollTo(0,0) —— 这是闪烁的主要原因
+  2. 只在值真正变化时才更新CSS变量 —— 避免无意义的重排
+  3. 用防抖合并多次调用 —— 替代原来的3次setTimeout
+  4. 滚动操作只在必要时执行
 */
+
+// ========== 布局优化核心 ==========
+
 let layoutTimer = null;
+let lastAppTop = null;
+let lastAppHeight = null;
+let scrollTimer = null;
 
 function isInputFocused() {
   return document.activeElement === msgInput;
@@ -381,32 +393,34 @@ function syncViewportLayout() {
     height = window.visualViewport.height || window.innerHeight;
   }
 
-  root.style.setProperty('--app-top', Math.round(top) + 'px');
-  root.style.setProperty('--app-height', Math.round(height) + 'px');
+  const newTop = Math.round(top);
+  const newHeight = Math.round(height);
 
-  // 避免 iOS focus 后浏览器强行滚动 body
-  window.scrollTo(0, 0);
+  // 只在值真正变化时才更新CSS变量，避免无意义的重排
+  if (newTop !== lastAppTop) {
+    root.style.setProperty('--app-top', newTop + 'px');
+    lastAppTop = newTop;
+  }
 
-  if (isInputFocused()) {
-    scrollBottom();
+  if (newHeight !== lastAppHeight) {
+    root.style.setProperty('--app-height', newHeight + 'px');
+    lastAppHeight = newHeight;
+  }
+
+  // 只在输入框聚焦且页面被浏览器自动滚动时才修正滚动位置
+  // 不再无条件调用 window.scrollTo(0, 0)
+  if (isInputFocused() && window.scrollY > 0) {
+    window.scrollTo(0, 0);
   }
 }
 
 function scheduleViewportLayout() {
-  if (layoutTimer) cancelAnimationFrame(layoutTimer);
-  layoutTimer = requestAnimationFrame(() => {
-    syncViewportLayout();
-
-    setTimeout(() => {
+  if (layoutTimer) clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(() => {
+    requestAnimationFrame(() => {
       syncViewportLayout();
-      scrollBottom();
-    }, 60);
-
-    setTimeout(() => {
-      syncViewportLayout();
-      scrollBottom();
-    }, 260);
-  });
+    });
+  }, 50);
 }
 
 function autoResize() {
@@ -429,10 +443,13 @@ function autoResize() {
 }
 
 function scrollBottom() {
-  requestAnimationFrame(() => {
+  if (scrollTimer) cancelAnimationFrame(scrollTimer);
+  scrollTimer = requestAnimationFrame(() => {
     messagesWrap.scrollTop = messagesWrap.scrollHeight;
   });
 }
+
+// ========== 业务逻辑（完全不变） ==========
 
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
@@ -585,15 +602,15 @@ msgInput.addEventListener('input', autoResize);
 
 msgInput.addEventListener('focus', () => {
   scheduleViewportLayout();
-  scrollBottom();
+  // 延迟滚动到底部，等键盘动画完成
+  setTimeout(() => scrollBottom(), 150);
 });
 
 msgInput.addEventListener('blur', () => {
-  setTimeout(() => {
-    scheduleViewportLayout();
-  }, 80);
+  scheduleViewportLayout();
 });
 
+// 初始化
 syncViewportLayout();
 
 window.addEventListener('resize', scheduleViewportLayout);
