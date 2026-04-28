@@ -28,9 +28,9 @@
 ### 2. 上传文件/部署/结束进程/维护
 在你的本地终端（macOS/Linux）执行：
 ```bash
-scp ./chatroom -P 22 root@你的VPS_IP:/root/
-apk add --no-cache musl libc6-compat
-chmod +x /root/chatroom
+scp ./chatroom -P 22 root@你的VPS_IP:/root/  #上传文件
+apk add --no-cache musl libc6-compat #配置环境
+chmod +x /root/chatroom #赋权
 export CHAT_PASSWORD="你的密码"
 export PORT=你的端口号
 ./chatroom #测试
