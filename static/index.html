@@ -1707,6 +1707,11 @@ function loadMoreHistory() {
   if (state.loading) return;
   if (state.hasMore === false) return;
 
+  // 关键修复：
+  // 如果当前会话还有未读，但用户没有重新点击左侧会话，
+  // 那么第一次直接点“加载更多”时，也要补记未读边界。
+  maybeRecordUnreadBoundary(currentChat);
+
   state.loading = true;
   renderMessages();
 
