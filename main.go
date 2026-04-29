@@ -128,6 +128,11 @@ func parseMentions(content string, usernames []string, sender string) []string {
 		if runes[i] != '@' {
 			continue
 		}
+
+		if i > 0 && !isWhitespaceRune(runes[i-1]) {
+			continue
+		}
+
 		rest := string(runes[i+1:])
 		for _, name := range candidates {
 			if strings.HasPrefix(rest, name) {
@@ -150,12 +155,16 @@ func parseMentions(content string, usernames []string, sender string) []string {
 	return result
 }
 
+func isWhitespaceRune(r rune) bool {
+	return r == ' ' || r == '\n' || r == '\t' || r == '\r'
+}
+
 func isMentionBoundary(r rune) bool {
 	if r == 0 {
 		return true
 	}
 	switch r {
-	case ' ', '\n', '\t', ',', '，', '.', '。', '!', '！', '?', '？', ':', '：', ';', '；':
+	case ' ', '\n', '\t', '\r', ',', '，', '.', '。', '!', '！', '?', '？', ':', '：', ';', '；':
 		return true
 	default:
 		return false
@@ -177,6 +186,25 @@ func parseMentionsJSON(raw string) []string {
 	var mentions []string
 	_ = json.Unmarshal([]byte(raw), &mentions)
 	return mentions
+}
+
+func parseMentionReadJSON(raw string) map[string]bool {
+	if strings.TrimSpace(raw) == "" {
+		return map[string]bool{}
+	}
+	var m map[string]bool
+	if err := json.Unmarshal([]byte(raw), &m); err != nil || m == nil {
+		return map[string]bool{}
+	}
+	return m
+}
+
+func mentionReadToJSON(m map[string]bool) string {
+	if m == nil {
+		m = map[string]bool{}
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
 }
 
 func (h *Hub) run() {
@@ -251,7 +279,7 @@ func broadcastUserList() {
 }
 
 func saveMessage(msg Message) {
-	if msg.Type == "system" || msg.Type == "online" || msg.Type == "read_sync" {
+	if msg.Type == "system" || msg.Type == "online" || msg.Type == "read_sync" || msg.Type == "mention_read_sync" {
 		return
 	}
 	_, err := db.Exec(
@@ -310,9 +338,13 @@ func (c *Client) readPump(ctx context.Context) {
 			hub.nickMap[nick] = c
 			hub.mu.Unlock()
 
-			var lastReadJson string
-			db.QueryRow("SELECT last_read_at FROM users WHERE username = ?", nick).Scan(&lastReadJson)
-			c.send <- Message{Type: "read_sync", Content: lastReadJson}
+			var lastReadJSON string
+			db.QueryRow("SELECT last_read_at FROM users WHERE username = ?", nick).Scan(&lastReadJSON)
+			c.send <- Message{Type: "read_sync", Content: lastReadJSON}
+
+			var mentionReadJSON string
+			db.QueryRow("SELECT mention_read_at FROM users WHERE username = ?", nick).Scan(&mentionReadJSON)
+			c.send <- Message{Type: "mention_read_sync", Content: mentionReadJSON}
 
 			rows, _ := db.Query(`
 				SELECT msg_id, type, sender, receiver, content, timestamp, mentions
@@ -335,6 +367,7 @@ func (c *Client) readPump(ctx context.Context) {
 			for _, m := range msgs {
 				c.send <- m
 			}
+
 			broadcastUserList()
 
 		case "read_ack":
@@ -343,12 +376,12 @@ func (c *Client) readPump(ctx context.Context) {
 			}
 
 			var lastReadMap map[string]int64
-			var rawJson string
-			db.QueryRow("SELECT last_read_at FROM users WHERE username = ?", c.nick).Scan(&rawJson)
-			if rawJson == "" {
-				rawJson = "{}"
+			var rawJSON string
+			db.QueryRow("SELECT last_read_at FROM users WHERE username = ?", c.nick).Scan(&rawJSON)
+			if rawJSON == "" {
+				rawJSON = "{}"
 			}
-			json.Unmarshal([]byte(rawJson), &lastReadMap)
+			json.Unmarshal([]byte(rawJSON), &lastReadMap)
 			if lastReadMap == nil {
 				lastReadMap = make(map[string]int64)
 			}
@@ -359,8 +392,25 @@ func (c *Client) readPump(ctx context.Context) {
 			}
 			lastReadMap[target] = time.Now().Unix()
 
-			newJson, _ := json.Marshal(lastReadMap)
-			db.Exec("UPDATE users SET last_read_at = ? WHERE username = ?", string(newJson), c.nick)
+			newJSON, _ := json.Marshal(lastReadMap)
+			db.Exec("UPDATE users SET last_read_at = ? WHERE username = ?", string(newJSON), c.nick)
+
+		case "mention_read_ack":
+			if c.nick == "" {
+				continue
+			}
+
+			mentionMsgID := strings.TrimSpace(msg.Content)
+			if mentionMsgID == "" {
+				continue
+			}
+
+			var rawJSON string
+			db.QueryRow("SELECT mention_read_at FROM users WHERE username = ?", c.nick).Scan(&rawJSON)
+			readMap := parseMentionReadJSON(rawJSON)
+			readMap[mentionMsgID] = true
+
+			db.Exec("UPDATE users SET mention_read_at = ? WHERE username = ?", mentionReadToJSON(readMap), c.nick)
 
 		case "public":
 			if c.nick == "" {
@@ -441,7 +491,8 @@ func main() {
 	db.Exec(`CREATE TABLE IF NOT EXISTS users (
 		username TEXT PRIMARY KEY,
 		password TEXT,
-		last_read_at TEXT DEFAULT '{}'
+		last_read_at TEXT DEFAULT '{}',
+		mention_read_at TEXT DEFAULT '{}'
 	)`)
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS messages (
@@ -456,6 +507,7 @@ func main() {
 	)`)
 
 	db.Exec(`ALTER TABLE users ADD COLUMN last_read_at TEXT DEFAULT '{}'`)
+	db.Exec(`ALTER TABLE users ADD COLUMN mention_read_at TEXT DEFAULT '{}'`)
 	db.Exec(`ALTER TABLE messages ADD COLUMN msg_id TEXT`)
 	db.Exec(`ALTER TABLE messages ADD COLUMN mentions TEXT DEFAULT '[]'`)
 
