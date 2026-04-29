@@ -638,6 +638,7 @@ const publicHistory = [];
 const publicMsgIndex = new Map();
 
 let lastReadTimes = {};
+let mentionReadMap = {};
 const unreadCounts = {};
 const mentionNotifications = [];
 
@@ -743,6 +744,10 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function escapeJsString(str) {
+  return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function formatTime(ts) {
   const d = new Date(ts * 1000);
   const hh = String(d.getHours()).padStart(2, '0');
@@ -821,6 +826,19 @@ function getMentionQueryInfo() {
     atIndex,
     caret: pos
   };
+}
+
+function isMentionAlreadyRead(msg) {
+  if (!msg || !msg.id) return false;
+  return !!mentionReadMap[msg.id];
+}
+
+function shouldAddMentionNotification(msg) {
+  if (!msg || msg.type !== 'public') return false;
+  if (msg.from === myNick) return false;
+  if (!Array.isArray(msg.mentions) || !msg.mentions.includes(myNick)) return false;
+  if (isMentionAlreadyRead(msg)) return false;
+  return true;
 }
 
 function renderMentionPanel() {
@@ -1012,11 +1030,33 @@ function pushMentionNotification(msg) {
   updateMentionBell();
 }
 
+function removeMentionNotificationByID(id) {
+  const idx = mentionNotifications.findIndex(x => x.id === id);
+  if (idx >= 0) {
+    mentionNotifications.splice(idx, 1);
+    updateMentionBell();
+  }
+}
+
 function consumeNextMentionNotification() {
   if (!mentionNotifications.length) return null;
   const item = mentionNotifications.shift();
   updateMentionBell();
   return item;
+}
+
+function markMentionReadLocal(id) {
+  if (!id) return;
+  mentionReadMap[id] = true;
+  removeMentionNotificationByID(id);
+}
+
+function markMentionReadRemote(id) {
+  if (!id || !ws) return;
+  ws.send(JSON.stringify({
+    type: 'mention_read_ack',
+    content: id
+  }));
 }
 
 function showMentionToast(msg) {
@@ -1027,6 +1067,10 @@ function showMentionToast(msg) {
     <div class="mention-toast-body">${escapeHtml(msg.content)}</div>
   `;
   toast.onclick = () => {
+    if (!isMentionAlreadyRead(msg)) {
+      markMentionReadLocal(msg.id);
+      markMentionReadRemote(msg.id);
+    }
     jumpToMessage(msg.id);
     toast.remove();
   };
@@ -1055,10 +1099,6 @@ function updateUserList() {
   }).join('');
 
   updateMentionBell();
-}
-
-function escapeJsString(str) {
-  return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 function clickUser(nick) {
@@ -1225,6 +1265,12 @@ function connectWs() {
       } catch {
         lastReadTimes = {};
       }
+    } else if (msg.type === 'mention_read_sync') {
+      try {
+        mentionReadMap = JSON.parse(msg.content || '{}') || {};
+      } catch {
+        mentionReadMap = {};
+      }
     } else if (msg.type === 'online') {
       allUsers = (msg.user_list || []).filter(u => u.name !== myNick);
       updateUserList();
@@ -1245,8 +1291,7 @@ function connectWs() {
         }
       }
 
-      const mentionedMe = isPublic && Array.isArray(msg.mentions) && msg.mentions.includes(myNick) && msg.from !== myNick;
-      if (mentionedMe) {
+      if (shouldAddMentionNotification(msg)) {
         pushMentionNotification(msg);
         if (currentChat === 'public') {
           showMentionToast(msg);
@@ -1310,6 +1355,12 @@ document.getElementById('overlay').onclick = closeSidebar;
 mentionBell.onclick = () => {
   const item = consumeNextMentionNotification();
   if (!item) return;
+
+  if (!isMentionAlreadyRead(item)) {
+    markMentionReadLocal(item.id);
+    markMentionReadRemote(item.id);
+  }
+
   jumpToMessage(item.id);
 };
 
