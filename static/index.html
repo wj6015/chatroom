@@ -15,8 +15,6 @@
   --border: #e4e6ea;
   --sidebar-w: 240px;
   --header-h: 52px;
-
-  /* iOS 键盘修复核心变量 */
   --app-top: 0px;
   --app-height: 100svh;
 }
@@ -31,7 +29,6 @@ html, body {
   -webkit-overflow-scrolling: auto;
 }
 
-/* 防止 iOS 在 textarea focus 时把整个页面自动滚乱 */
 body {
   position: fixed;
   inset: 0;
@@ -74,9 +71,60 @@ body {
   color: #fff;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 16px;
   flex-shrink: 0;
   z-index: 10;
+}
+
+#chat-header-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+#chat-title {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#mention-bell {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#mention-bell.show {
+  display: inline-flex;
+}
+
+#mention-bell-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff4d4f;
+  color: #fff;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
 }
 
 #messages-wrap {
@@ -89,6 +137,7 @@ body {
   gap: 8px;
   min-height: 0;
   overscroll-behavior: contain;
+  position: relative;
 }
 
 #input-area {
@@ -101,6 +150,7 @@ body {
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
   flex-shrink: 0;
   z-index: 100;
+  position: relative;
 }
 
 .msg-row {
@@ -108,6 +158,7 @@ body {
   gap: 8px;
   margin-bottom: 4px;
   animation: fadeIn 0.15s ease;
+  align-items: flex-start;
 }
 
 @keyframes fadeIn {
@@ -131,15 +182,56 @@ body {
   font-size: 12px;
   font-weight: bold;
   flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+.msg-main {
+  display: flex;
+  flex-direction: column;
+  max-width: 75%;
+}
+
+.msg-row.me .msg-main {
+  align-items: flex-end;
+}
+
+.msg-meta {
+  font-size: 12px;
+  color: #667085;
+  margin-bottom: 4px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.msg-row.me .msg-meta {
+  justify-content: flex-end;
+}
+
+.msg-sender {
+  font-weight: 600;
+  color: #4b5563;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.msg-time {
+  color: #98a2b3;
+  font-size: 11px;
 }
 
 .bubble {
-  max-width: 75%;
+  max-width: 100%;
   padding: 8px 12px;
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.5;
-  word-break: break-all;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .msg-row.me .bubble {
@@ -152,6 +244,24 @@ body {
   background: #e9ebef;
   color: #1c1e21;
   border-bottom-left-radius: 2px;
+}
+
+.msg-row.message-highlight .bubble {
+  animation: mentionPulse 2.5s ease;
+  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.45);
+  background: #fff3cd !important;
+  color: #1c1e21 !important;
+}
+
+@keyframes mentionPulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,193,7,0.75); }
+  25% { box-shadow: 0 0 0 6px rgba(255,193,7,0.20); }
+  100% { box-shadow: 0 0 0 0 rgba(255,193,7,0); }
+}
+
+.mention-text {
+  color: #5b4bff;
+  font-weight: 700;
 }
 
 #msg-input {
@@ -220,6 +330,155 @@ body {
   margin-left: auto;
 }
 
+.public-entry-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.public-mention-badge {
+  background: #ffa940;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: bold;
+  margin-left: 0;
+}
+
+#mention-panel {
+  position: absolute;
+  left: 12px;
+  right: 60px;
+  bottom: calc(100% + 6px);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+  display: none;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 120;
+}
+
+#mention-panel.show {
+  display: block;
+}
+
+.mention-group-title {
+  padding: 10px 14px 6px 14px;
+  font-size: 12px;
+  color: #98a2b3;
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.mention-item {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.mention-item:last-child {
+  border-bottom: none;
+}
+
+.mention-item.active {
+  background: #f3f0ff;
+}
+
+.mention-item:hover {
+  background: #f8f7ff;
+}
+
+.mention-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mention-item-name {
+  flex: 1;
+  font-size: 14px;
+  color: #111827;
+}
+
+.mention-item-status {
+  font-size: 12px;
+  color: #98a2b3;
+}
+
+.mention-panel-footer {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 10px 12px;
+  border-top: 1px solid #eceef3;
+}
+
+#mention-insert-btn {
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#mention-insert-btn:disabled {
+  background: #c7c9d6;
+  cursor: not-allowed;
+}
+
+#mention-toast-list {
+  position: fixed;
+  top: 62px;
+  right: 12px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.mention-toast {
+  min-width: 220px;
+  max-width: 300px;
+  background: #1f2937;
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+  animation: toastIn 0.2s ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.mention-toast-title {
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 4px;
+}
+
+.mention-toast-body {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 680px) {
   #sidebar {
     position: fixed;
@@ -240,6 +499,17 @@ body {
     background: none;
     border: none;
     color: #fff;
+  }
+
+  #mention-toast-list {
+    left: 12px;
+    right: 12px;
+    top: 60px;
+  }
+
+  .mention-toast {
+    max-width: none;
+    width: 100%;
   }
 }
 
@@ -306,27 +576,47 @@ body {
   </div>
 </div>
 
+<div id="mention-toast-list"></div>
+
 <div id="app">
   <div id="overlay"></div>
+
   <div id="sidebar">
     <div style="padding:20px; color:#fff; border-bottom:1px solid #2d323e;">
       <b style="font-size:16px;">💬 通讯录</b><br>
       <small id="my-nick-badge" style="color:var(--accent);"></small>
     </div>
+
     <div id="public-entry" class="user-item active">
-      <span class="dot online">#</span> 公开频道
+      <div class="public-entry-wrap">
+        <span class="dot online">#</span>
+        <span>公开频道</span>
+      </div>
+      <span id="public-mention-unread" class="public-mention-badge" style="display:none;">@0</span>
       <span id="public-unread" class="unread-badge" style="display:none;"></span>
     </div>
+
     <div id="user-list"></div>
   </div>
 
   <div id="main">
     <div id="chat-header">
-      <button id="menu-btn" style="display:none;">☰</button>
-      <div id="chat-title" style="font-weight:bold;">公开频道</div>
+      <div id="chat-header-left">
+        <button id="menu-btn" style="display:none;">☰</button>
+        <div id="chat-title">公开频道</div>
+      </div>
+      <div id="header-actions">
+        <button id="mention-bell" type="button">
+          <span>@提醒</span>
+          <span id="mention-bell-count">0</span>
+        </button>
+      </div>
     </div>
+
     <div id="messages-wrap"></div>
+
     <div id="input-area">
+      <div id="mention-panel"></div>
       <textarea id="msg-input" placeholder="输入消息..." rows="1"></textarea>
       <button id="send-btn">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -345,38 +635,27 @@ let ws = null;
 let allUsers = [];
 const privateHistory = {};
 const publicHistory = [];
+const publicMsgIndex = new Map();
 
-// 关键变量
 let lastReadTimes = {};
 const unreadCounts = {};
+const mentionNotifications = [];
 
 const msgInput = document.getElementById('msg-input');
 const messagesWrap = document.getElementById('messages-wrap');
-const app = document.getElementById('app');
-
-/*
-  ============================================
-  iOS 键盘布局修复 - 优化版
-  ============================================
-  
-  修复目标：
-  1. 保持三段式UI结构（标题栏、消息列表、输入区域）
-  2. 解决软键盘弹出时输入框漂移问题
-  3. 消除UI闪烁和抖动
-  
-  优化策略：
-  1. 移除强制 window.scrollTo(0,0) —— 这是闪烁的主要原因
-  2. 只在值真正变化时才更新CSS变量 —— 避免无意义的重排
-  3. 用防抖合并多次调用 —— 替代原来的3次setTimeout
-  4. 滚动操作只在必要时执行
-*/
-
-// ========== 布局优化核心 ==========
+const mentionPanel = document.getElementById('mention-panel');
+const mentionBell = document.getElementById('mention-bell');
+const mentionBellCount = document.getElementById('mention-bell-count');
+const mentionToastList = document.getElementById('mention-toast-list');
 
 let layoutTimer = null;
 let lastAppTop = null;
 let lastAppHeight = null;
 let scrollTimer = null;
+let mentionActiveIndex = 0;
+let mentionCandidates = [];
+let longPressTimer = null;
+let selectedMentionUsers = new Set();
 
 function isInputFocused() {
   return document.activeElement === msgInput;
@@ -384,7 +663,6 @@ function isInputFocused() {
 
 function syncViewportLayout() {
   const root = document.documentElement;
-
   let top = 0;
   let height = window.innerHeight;
 
@@ -396,7 +674,6 @@ function syncViewportLayout() {
   const newTop = Math.round(top);
   const newHeight = Math.round(height);
 
-  // 只在值真正变化时才更新CSS变量，避免无意义的重排
   if (newTop !== lastAppTop) {
     root.style.setProperty('--app-top', newTop + 'px');
     lastAppTop = newTop;
@@ -407,8 +684,6 @@ function syncViewportLayout() {
     lastAppHeight = newHeight;
   }
 
-  // 只在输入框聚焦且页面被浏览器自动滚动时才修正滚动位置
-  // 不再无条件调用 window.scrollTo(0, 0)
   if (isInputFocused() && window.scrollY > 0) {
     window.scrollTo(0, 0);
   }
@@ -449,11 +724,487 @@ function scrollBottom() {
   });
 }
 
-// ========== 业务逻辑（完全不变） ==========
-
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
+}
+
+function escapeHtml(str) {
+  return (str || '').replace(/[&<>"']/g, s => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[s]));
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function formatTime(ts) {
+  const d = new Date(ts * 1000);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function renderContentWithMentions(content, mentions = []) {
+  let html = escapeHtml(content);
+  const unique = [...new Set((mentions || []).filter(Boolean))].sort((a, b) => b.length - a.length);
+  unique.forEach(name => {
+    const re = new RegExp('@' + escapeRegExp(name), 'g');
+    html = html.replace(re, `<span class="mention-text">@${escapeHtml(name)}</span>`);
+  });
+  return html;
+}
+
+function parseMentionsFromText(content) {
+  if (!content) return [];
+  const found = [];
+  const sortedUsers = [...allUsers.map(u => u.name), myNick].filter(Boolean).sort((a, b) => b.length - a.length);
+
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] !== '@') continue;
+
+    const prev = i === 0 ? '' : content[i - 1];
+    if (prev && !/\s/.test(prev)) continue;
+
+    let matched = '';
+    for (const name of sortedUsers) {
+      if (content.slice(i + 1, i + 1 + name.length) === name) {
+        const after = content[i + 1 + name.length] || '';
+        if (after === '' || /\s|，|。|,|!|！|\?|？|:|：|;|；/.test(after)) {
+          matched = name;
+          break;
+        }
+      }
+    }
+    if (matched && !found.includes(matched)) found.push(matched);
+  }
+  return found;
+}
+
+function getAllMentionUsers() {
+  return allUsers
+    .filter(u => u.name !== myNick)
+    .sort((a, b) => {
+      if (a.online !== b.online) return a.online ? -1 : 1;
+      return a.name.localeCompare(b.name, 'zh-CN');
+    });
+}
+
+function getSortedMentionUsers(keyword = '') {
+  const k = keyword.trim().toLowerCase();
+  return getAllMentionUsers().filter(u => !k || u.name.toLowerCase().includes(k));
+}
+
+function getMentionQueryInfo() {
+  if (currentChat !== 'public') return null;
+
+  const value = msgInput.value;
+  const pos = msgInput.selectionStart;
+  const before = value.slice(0, pos);
+  const match = before.match(/(?:^|\s)@([^\s@]*)$/);
+
+  if (!match) return null;
+
+  const atIndex = before.lastIndexOf('@');
+  if (atIndex < 0) return null;
+
+  const prevChar = atIndex > 0 ? before[atIndex - 1] : '';
+  if (prevChar && !/\s/.test(prevChar)) return null;
+
+  return {
+    keyword: match[1] || '',
+    atIndex,
+    caret: pos
+  };
+}
+
+function renderMentionPanel() {
+  const info = getMentionQueryInfo();
+  if (!info) {
+    hideMentionPanel();
+    return;
+  }
+
+  const allMentionUsers = getAllMentionUsers();
+  const filteredUsers = getSortedMentionUsers(info.keyword);
+
+  mentionCandidates = [
+    { type: 'all', name: '__ALL__', online: null }
+  ];
+
+  const onlineUsers = filteredUsers.filter(u => u.online);
+  const offlineUsers = filteredUsers.filter(u => !u.online);
+
+  let html = '';
+
+  html += `
+    <div class="mention-item ${mentionActiveIndex === 0 ? 'active' : ''}" data-type="all" data-name="__ALL__">
+      <input class="mention-checkbox" type="checkbox" data-type="all-checkbox" ${isAllUsersSelected() ? 'checked' : ''}>
+      <span class="mention-item-name">所有用户</span>
+      <span class="mention-item-status">${allMentionUsers.length}人</span>
+    </div>
+  `;
+
+  if (onlineUsers.length) {
+    html += `<div class="mention-group-title">在线用户</div>`;
+    onlineUsers.forEach(u => {
+      mentionCandidates.push({ type: 'user', ...u });
+      const idx = mentionCandidates.length - 1;
+      html += `
+        <div class="mention-item ${mentionActiveIndex === idx ? 'active' : ''}" data-type="user" data-name="${escapeHtml(u.name)}">
+          <input class="mention-checkbox" type="checkbox" data-type="user-checkbox" data-name="${escapeHtml(u.name)}" ${selectedMentionUsers.has(u.name) ? 'checked' : ''}>
+          <span class="dot online">●</span>
+          <span class="mention-item-name">${escapeHtml(u.name)}</span>
+          <span class="mention-item-status">在线</span>
+        </div>
+      `;
+    });
+  }
+
+  if (offlineUsers.length) {
+    html += `<div class="mention-group-title">离线用户</div>`;
+    offlineUsers.forEach(u => {
+      mentionCandidates.push({ type: 'user', ...u });
+      const idx = mentionCandidates.length - 1;
+      html += `
+        <div class="mention-item ${mentionActiveIndex === idx ? 'active' : ''}" data-type="user" data-name="${escapeHtml(u.name)}">
+          <input class="mention-checkbox" type="checkbox" data-type="user-checkbox" data-name="${escapeHtml(u.name)}" ${selectedMentionUsers.has(u.name) ? 'checked' : ''}>
+          <span class="dot offline">○</span>
+          <span class="mention-item-name">${escapeHtml(u.name)}</span>
+          <span class="mention-item-status">离线</span>
+        </div>
+      `;
+    });
+  }
+
+  html += `
+    <div class="mention-panel-footer">
+      <button id="mention-insert-btn" ${selectedMentionUsers.size === 0 ? 'disabled' : ''}>
+        插入已选用户(${selectedMentionUsers.size})
+      </button>
+    </div>
+  `;
+
+  mentionPanel.innerHTML = html;
+  mentionPanel.classList.add('show');
+}
+
+function showMentionPanel() {
+  renderMentionPanel();
+}
+
+function hideMentionPanel() {
+  mentionPanel.classList.remove('show');
+  mentionPanel.innerHTML = '';
+  mentionCandidates = [];
+  mentionActiveIndex = 0;
+  selectedMentionUsers.clear();
+}
+
+function insertMention(name, withGreeting = false) {
+  const info = getMentionQueryInfo();
+  const value = msgInput.value;
+  let newValue = value;
+  let caretPos = 0;
+
+  if (info) {
+    const before = value.slice(0, info.atIndex);
+    const after = value.slice(info.caret);
+    const mentionText = withGreeting ? `@${name} 在吗 ` : `@${name} `;
+    newValue = before + mentionText + after;
+    caretPos = (before + mentionText).length;
+  } else {
+    const prefix = value && !/\s$/.test(value) ? value + ' ' : value;
+    const mentionText = withGreeting ? `@${name} 在吗 ` : `@${name} `;
+    newValue = prefix + mentionText;
+    caretPos = newValue.length;
+  }
+
+  msgInput.value = newValue;
+  msgInput.focus();
+  msgInput.setSelectionRange(caretPos, caretPos);
+  autoResize();
+  hideMentionPanel();
+}
+
+function insertMultipleMentions(names) {
+  const validNames = [...new Set(names.filter(Boolean))];
+  if (!validNames.length) return;
+
+  const info = getMentionQueryInfo();
+  const value = msgInput.value;
+  const mentionText = validNames.map(name => `@${name}`).join(' ') + ' ';
+  let newValue = value;
+  let caretPos = 0;
+
+  if (info) {
+    const before = value.slice(0, info.atIndex);
+    const after = value.slice(info.caret);
+    newValue = before + mentionText + after;
+    caretPos = (before + mentionText).length;
+  } else {
+    const prefix = value && !/\s$/.test(value) ? value + ' ' : value;
+    newValue = prefix + mentionText;
+    caretPos = newValue.length;
+  }
+
+  msgInput.value = newValue;
+  msgInput.focus();
+  msgInput.setSelectionRange(caretPos, caretPos);
+  autoResize();
+  hideMentionPanel();
+}
+
+function insertAllUsersMention() {
+  const names = getAllMentionUsers().map(u => u.name);
+  insertMultipleMentions(names);
+}
+
+function isAllUsersSelected() {
+  const allNames = getAllMentionUsers().map(u => u.name);
+  if (!allNames.length) return false;
+  return allNames.every(name => selectedMentionUsers.has(name));
+}
+
+function toggleSelectAllUsers(checked) {
+  const allNames = getAllMentionUsers().map(u => u.name);
+  if (checked) {
+    allNames.forEach(name => selectedMentionUsers.add(name));
+  } else {
+    allNames.forEach(name => selectedMentionUsers.delete(name));
+  }
+  renderMentionPanel();
+}
+
+function toggleSelectOneUser(name, checked) {
+  if (!name) return;
+  if (checked) selectedMentionUsers.add(name);
+  else selectedMentionUsers.delete(name);
+  renderMentionPanel();
+}
+
+function insertSelectedMentionUsers() {
+  const names = getAllMentionUsers()
+    .map(u => u.name)
+    .filter(name => selectedMentionUsers.has(name));
+  insertMultipleMentions(names);
+}
+
+function updateMentionBell() {
+  const count = mentionNotifications.length;
+  mentionBellCount.textContent = count;
+  mentionBell.classList.toggle('show', count > 0);
+
+  const badge = document.getElementById('public-mention-unread');
+  badge.style.display = count > 0 ? 'inline-flex' : 'none';
+  badge.textContent = '@' + count;
+}
+
+function pushMentionNotification(msg) {
+  if (!msg || !msg.id) return;
+  if (mentionNotifications.some(x => x.id === msg.id)) return;
+  mentionNotifications.push(msg);
+  updateMentionBell();
+}
+
+function consumeNextMentionNotification() {
+  if (!mentionNotifications.length) return null;
+  const item = mentionNotifications.shift();
+  updateMentionBell();
+  return item;
+}
+
+function showMentionToast(msg) {
+  const toast = document.createElement('div');
+  toast.className = 'mention-toast';
+  toast.innerHTML = `
+    <div class="mention-toast-title">${escapeHtml(msg.from)} @了你</div>
+    <div class="mention-toast-body">${escapeHtml(msg.content)}</div>
+  `;
+  toast.onclick = () => {
+    jumpToMessage(msg.id);
+    toast.remove();
+  };
+  mentionToastList.appendChild(toast);
+  setTimeout(() => {
+    toast.remove();
+  }, 4000);
+}
+
+function updateUserList() {
+  const pubCount = unreadCounts['public'] || 0;
+  const pubBadge = document.getElementById('public-unread');
+  pubBadge.style.display = pubCount > 0 ? 'block' : 'none';
+  pubBadge.textContent = pubCount;
+
+  document.getElementById('user-list').innerHTML = allUsers.map(u => {
+    const count = unreadCounts[u.name] || 0;
+    const badge = count > 0 ? `<span class="unread-badge">${count}</span>` : '';
+    return `
+      <div class="user-item ${currentChat === u.name ? 'active' : ''}" onclick="clickUser('${escapeJsString(u.name)}')">
+        <span class="dot ${u.online ? 'online' : 'offline'}">${u.online ? '●' : '○'}</span>
+        <span style="flex:1">${escapeHtml(u.name)}</span>
+        ${badge}
+      </div>
+    `;
+  }).join('');
+
+  updateMentionBell();
+}
+
+function escapeJsString(str) {
+  return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function clickUser(nick) {
+  currentChat = nick;
+
+  delete unreadCounts[nick];
+  lastReadTimes[nick] = Math.floor(Date.now() / 1000);
+  if (ws) {
+    ws.send(JSON.stringify({ type: 'read_ack', to: nick === 'public' ? '' : nick }));
+  }
+
+  document.getElementById('chat-title').textContent = nick === 'public' ? '公开频道' : '私聊: ' + nick;
+  updateUserList();
+  renderMessages();
+  closeSidebar();
+  hideMentionPanel();
+}
+
+function renderMessages() {
+  messagesWrap.innerHTML = '';
+  publicMsgIndex.clear();
+
+  const list = currentChat === 'public' ? publicHistory : (privateHistory[currentChat] || []);
+  list.forEach(appendMsgUI);
+  scrollBottom();
+}
+
+function createLongPressHandlers(target, name) {
+  const start = () => {
+    if (!name || name === myNick) return;
+    longPressTimer = setTimeout(() => {
+      insertMentionDirect(name);
+    }, 450);
+  };
+
+  const clear = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  };
+
+  target.addEventListener('touchstart', start, { passive: true });
+  target.addEventListener('touchend', clear);
+  target.addEventListener('touchcancel', clear);
+  target.addEventListener('mousedown', start);
+  target.addEventListener('mouseup', clear);
+  target.addEventListener('mouseleave', clear);
+}
+
+function insertMentionDirect(name) {
+  const value = msgInput.value;
+  const prefix = value && !/\s$/.test(value) ? value + ' ' : value;
+  const newValue = prefix + `@${name} `;
+  msgInput.value = newValue;
+  msgInput.focus();
+  msgInput.setSelectionRange(newValue.length, newValue.length);
+  autoResize();
+  hideMentionPanel();
+}
+
+function appendMsgUI(msg) {
+  const isMe = msg.from === myNick;
+  const div = document.createElement('div');
+  div.className = `msg-row ${isMe ? 'me' : ''}`;
+
+  if (msg.id) {
+    div.dataset.id = msg.id;
+    if (msg.type === 'public') {
+      publicMsgIndex.set(msg.id, div);
+    }
+  }
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = (msg.from || '?')[0]?.toUpperCase?.() || '?';
+
+  const msgMain = document.createElement('div');
+  msgMain.className = 'msg-main';
+
+  const meta = document.createElement('div');
+  meta.className = 'msg-meta';
+
+  const sender = document.createElement('span');
+  sender.className = 'msg-sender';
+  sender.textContent = msg.from || '';
+
+  const timeEl = document.createElement('span');
+  timeEl.className = 'msg-time';
+  timeEl.textContent = formatTime(msg.timestamp || Math.floor(Date.now() / 1000));
+
+  meta.appendChild(sender);
+  meta.appendChild(timeEl);
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = renderContentWithMentions(msg.content || '', msg.mentions || []);
+
+  msgMain.appendChild(meta);
+  msgMain.appendChild(bubble);
+  div.appendChild(avatar);
+  div.appendChild(msgMain);
+
+  createLongPressHandlers(avatar, msg.from);
+  createLongPressHandlers(sender, msg.from);
+
+  messagesWrap.appendChild(div);
+  scrollBottom();
+
+  const mentionedMe = Array.isArray(msg.mentions) && msg.mentions.includes(myNick);
+  if (msg.type === 'public' && mentionedMe && msg.from !== myNick && currentChat === 'public') {
+    flashMessageById(msg.id);
+  }
+}
+
+function flashMessageById(id) {
+  if (!id) return;
+  const el = messagesWrap.querySelector(`[data-id="${id}"]`);
+  if (!el) return;
+  el.classList.remove('message-highlight');
+  void el.offsetWidth;
+  el.classList.add('message-highlight');
+  setTimeout(() => {
+    el.classList.remove('message-highlight');
+  }, 2600);
+}
+
+function jumpToMessage(id) {
+  if (!id) return;
+  if (currentChat !== 'public') {
+    clickUser('public');
+  }
+
+  requestAnimationFrame(() => {
+    const el = messagesWrap.querySelector(`[data-id="${id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => flashMessageById(id), 250);
+  });
+}
+
+function appendSystemMsg(text) {
+  const div = document.createElement('div');
+  div.style.cssText = "text-align:center; font-size:12px; color:#999; margin:10px 0;";
+  div.textContent = text;
+  messagesWrap.appendChild(div);
 }
 
 function connectWs() {
@@ -468,30 +1219,44 @@ function connectWs() {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
 
-    if(msg.type === 'read_sync') {
-      lastReadTimes = JSON.parse(msg.content || '{}');
-    } else if(msg.type === 'online') {
-      allUsers = msg.user_list.filter(u => u.name !== myNick);
+    if (msg.type === 'read_sync') {
+      try {
+        lastReadTimes = JSON.parse(msg.content || '{}') || {};
+      } catch {
+        lastReadTimes = {};
+      }
+    } else if (msg.type === 'online') {
+      allUsers = (msg.user_list || []).filter(u => u.name !== myNick);
       updateUserList();
-    } else if(msg.type === 'public' || msg.type === 'private') {
+      if (currentChat === 'public' && document.activeElement === msgInput) {
+        showMentionPanel();
+      }
+    } else if (msg.type === 'public' || msg.type === 'private') {
       const isPublic = msg.type === 'public';
       const peer = isPublic ? 'public' : (msg.from === myNick ? msg.to : msg.from);
       const targetList = isPublic ? publicHistory : (privateHistory[peer] || (privateHistory[peer] = []));
 
       targetList.push(msg);
 
-      // 计算未读：如果不是我发的，且当前没在这个窗口，且时间晚于最后阅读时间
       if (msg.from !== myNick && currentChat !== peer) {
         const lastTime = lastReadTimes[peer] || 0;
         if (msg.timestamp > lastTime) {
           unreadCounts[peer] = (unreadCounts[peer] || 0) + 1;
-          updateUserList();
         }
       }
 
-      if(currentChat === peer) appendMsgUI(msg);
-    } else if(msg.type === 'system') {
-      if(msg.content.includes("密码") || msg.content.includes("别处")) {
+      const mentionedMe = isPublic && Array.isArray(msg.mentions) && msg.mentions.includes(myNick) && msg.from !== myNick;
+      if (mentionedMe) {
+        pushMentionNotification(msg);
+        if (currentChat === 'public') {
+          showMentionToast(msg);
+        }
+      }
+
+      if (currentChat === peer) appendMsgUI(msg);
+      updateUserList();
+    } else if (msg.type === 'system') {
+      if (msg.content.includes("密码") || msg.content.includes("别处")) {
         document.getElementById('nick-modal').style.display = 'flex';
         document.getElementById('nick-err').textContent = msg.content;
         ws.close();
@@ -502,67 +1267,10 @@ function connectWs() {
   };
 }
 
-function updateUserList() {
-  // 公开频道未读显示
-  const pubCount = unreadCounts['public'] || 0;
-  const pubBadge = document.getElementById('public-unread');
-  pubBadge.style.display = pubCount > 0 ? 'block' : 'none';
-  pubBadge.textContent = pubCount;
-
-  document.getElementById('user-list').innerHTML = allUsers.map(u => {
-    const count = unreadCounts[u.name] || 0;
-    const badge = count > 0 ? `<span class="unread-badge">${count}</span>` : '';
-    return `
-      <div class="user-item ${currentChat === u.name ? 'active' : ''}" onclick="clickUser('${u.name}')">
-        <span class="dot ${u.online ? 'online' : 'offline'}">${u.online ? '●' : '○'}</span>
-        <span style="flex:1">${u.name}</span>
-        ${badge}
-      </div>
-    `;
-  }).join('');
-}
-
-function clickUser(nick) {
-  currentChat = nick;
-
-  // 清除本地未读并通知后端已读
-  delete unreadCounts[nick];
-  lastReadTimes[nick] = Math.floor(Date.now() / 1000);
-  if(ws) ws.send(JSON.stringify({ type: 'read_ack', to: nick }));
-
-  document.getElementById('chat-title').textContent = nick === 'public' ? '公开频道' : '私聊: ' + nick;
-  updateUserList();
-  renderMessages();
-  closeSidebar();
-}
-
-function renderMessages() {
-  messagesWrap.innerHTML = '';
-  const list = currentChat === 'public' ? publicHistory : (privateHistory[currentChat] || []);
-  list.forEach(appendMsgUI);
-  scrollBottom();
-}
-
-function appendMsgUI(msg) {
-  const isMe = msg.from === myNick;
-  const div = document.createElement('div');
-  div.className = `msg-row ${isMe ? 'me' : ''}`;
-  div.innerHTML = `<div class="avatar">${msg.from[0].toUpperCase()}</div><div class="bubble">${msg.content}</div>`;
-  messagesWrap.appendChild(div);
-  scrollBottom();
-}
-
-function appendSystemMsg(text) {
-  const div = document.createElement('div');
-  div.style.cssText = "text-align:center; font-size:12px; color:#999; margin:10px 0;";
-  div.textContent = text;
-  messagesWrap.appendChild(div);
-}
-
 document.getElementById('nick-confirm').onclick = () => {
   const n = document.getElementById('nick-input').value.trim();
   const p = document.getElementById('nick-pass').value.trim();
-  if(!n || !p) return;
+  if (!n || !p) return;
   myNick = n;
   document.getElementById('my-nick-badge').textContent = '@' + myNick;
   document.getElementById('nick-modal').style.display = 'none';
@@ -571,14 +1279,22 @@ document.getElementById('nick-confirm').onclick = () => {
 
 document.getElementById('send-btn').onclick = () => {
   const content = msgInput.value.trim();
-  if(!content || !ws) return;
-  ws.send(JSON.stringify({
+  if (!content || !ws) return;
+
+  const payload = {
     type: currentChat === 'public' ? 'public' : 'private',
     to: currentChat === 'public' ? '' : currentChat,
-    content: content
-  }));
+    content
+  };
+
+  if (currentChat === 'public') {
+    payload.mentions = parseMentionsFromText(content);
+  }
+
+  ws.send(JSON.stringify(payload));
   msgInput.value = '';
   autoResize();
+  hideMentionPanel();
   msgInput.focus();
 };
 
@@ -591,26 +1307,127 @@ document.getElementById('menu-btn').onclick = () => {
 
 document.getElementById('overlay').onclick = closeSidebar;
 
+mentionBell.onclick = () => {
+  const item = consumeNextMentionNotification();
+  if (!item) return;
+  jumpToMessage(item.id);
+};
+
+mentionPanel.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+});
+
+mentionPanel.addEventListener('click', (e) => {
+  const checkbox = e.target.closest('.mention-checkbox');
+  if (checkbox) {
+    e.stopPropagation();
+
+    if (checkbox.dataset.type === 'all-checkbox') {
+      toggleSelectAllUsers(checkbox.checked);
+      return;
+    }
+
+    if (checkbox.dataset.type === 'user-checkbox') {
+      toggleSelectOneUser(checkbox.dataset.name, checkbox.checked);
+      return;
+    }
+  }
+
+  const insertBtn = e.target.closest('#mention-insert-btn');
+  if (insertBtn) {
+    if (!selectedMentionUsers.size) return;
+    insertSelectedMentionUsers();
+    return;
+  }
+
+  const item = e.target.closest('.mention-item');
+  if (!item) return;
+
+  const type = item.dataset.type;
+  const name = item.dataset.name;
+
+  if (type === 'all') {
+    insertAllUsersMention();
+    return;
+  }
+
+  if (type === 'user') {
+    insertMention(name, false);
+  }
+});
+
 msgInput.onkeydown = (e) => {
-  if(e.key === 'Enter' && !e.shiftKey) {
+  if (mentionPanel.classList.contains('show') && mentionCandidates.length) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      mentionActiveIndex = (mentionActiveIndex + 1) % mentionCandidates.length;
+      renderMentionPanel();
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      mentionActiveIndex = (mentionActiveIndex - 1 + mentionCandidates.length) % mentionCandidates.length;
+      renderMentionPanel();
+      return;
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const info = getMentionQueryInfo();
+      if (info) {
+        e.preventDefault();
+        const item = mentionCandidates[mentionActiveIndex];
+        if (!item) return;
+
+        if (item.type === 'all') {
+          insertAllUsersMention();
+        } else {
+          insertMention(item.name, false);
+        }
+        return;
+      }
+    }
+
+    if (e.key === 'Escape') {
+      hideMentionPanel();
+      return;
+    }
+  }
+
+  if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     document.getElementById('send-btn').click();
   }
 };
 
-msgInput.addEventListener('input', autoResize);
+msgInput.addEventListener('input', () => {
+  autoResize();
+  if (currentChat === 'public') {
+    showMentionPanel();
+  } else {
+    hideMentionPanel();
+  }
+});
+
+msgInput.addEventListener('click', () => {
+  if (currentChat === 'public') showMentionPanel();
+});
 
 msgInput.addEventListener('focus', () => {
   scheduleViewportLayout();
-  // 延迟滚动到底部，等键盘动画完成
   setTimeout(() => scrollBottom(), 150);
+  if (currentChat === 'public') {
+    setTimeout(showMentionPanel, 0);
+  }
 });
 
 msgInput.addEventListener('blur', () => {
   scheduleViewportLayout();
+  setTimeout(() => {
+    if (document.activeElement !== msgInput) hideMentionPanel();
+  }, 120);
 });
 
-// 初始化
 syncViewportLayout();
 
 window.addEventListener('resize', scheduleViewportLayout);
