@@ -7,7 +7,9 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"sort"
@@ -23,6 +25,7 @@ import (
 var indexHTML []byte
 
 type Message struct {
+	ID        string       `json:"id,omitempty"`
 	Type      string       `json:"type"`
 	From      string       `json:"from"`
 	To        string       `json:"to"`
@@ -30,6 +33,7 @@ type Message struct {
 	Timestamp int64        `json:"timestamp"`
 	Password  string       `json:"password,omitempty"`
 	UserList  []UserStatus `json:"user_list,omitempty"`
+	Mentions  []string     `json:"mentions,omitempty"`
 }
 
 type UserStatus struct {
@@ -76,6 +80,105 @@ func hashPwd(pwd string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+func generateMessageID() string {
+	return fmt.Sprintf("msg_%d_%04d", time.Now().UnixMilli(), rand.Intn(10000))
+}
+
+func getAllUsernames() ([]string, error) {
+	rows, err := db.Query("SELECT username FROM users")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err == nil {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
+func parseMentions(content string, usernames []string, sender string) []string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil
+	}
+
+	candidates := make([]string, 0, len(usernames))
+	for _, name := range usernames {
+		name = strings.TrimSpace(name)
+		if name == "" || name == sender {
+			continue
+		}
+		candidates = append(candidates, name)
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return len([]rune(candidates[i])) > len([]rune(candidates[j]))
+	})
+
+	seen := make(map[string]bool)
+	var result []string
+	runes := []rune(content)
+
+	for i := 0; i < len(runes); i++ {
+		if runes[i] != '@' {
+			continue
+		}
+		rest := string(runes[i+1:])
+		for _, name := range candidates {
+			if strings.HasPrefix(rest, name) {
+				nextPos := i + 1 + len([]rune(name))
+				var nextRune rune
+				if nextPos < len(runes) {
+					nextRune = runes[nextPos]
+				}
+				if nextPos == len(runes) || isMentionBoundary(nextRune) {
+					if !seen[name] {
+						seen[name] = true
+						result = append(result, name)
+					}
+					break
+				}
+			}
+		}
+	}
+
+	return result
+}
+
+func isMentionBoundary(r rune) bool {
+	if r == 0 {
+		return true
+	}
+	switch r {
+	case ' ', '\n', '\t', ',', '，', '.', '。', '!', '！', '?', '？', ':', '：', ';', '；':
+		return true
+	default:
+		return false
+	}
+}
+
+func mentionsToJSON(mentions []string) string {
+	if len(mentions) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(mentions)
+	return string(b)
+}
+
+func parseMentionsJSON(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var mentions []string
+	_ = json.Unmarshal([]byte(raw), &mentions)
+	return mentions
+}
+
 func (h *Hub) run() {
 	for {
 		select {
@@ -83,6 +186,7 @@ func (h *Hub) run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
+
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
@@ -95,6 +199,7 @@ func (h *Hub) run() {
 			}
 			h.mu.Unlock()
 			broadcastUserList()
+
 		case msg := <-h.broadcast:
 			if msg.Type == "public" {
 				saveMessage(msg)
@@ -116,7 +221,9 @@ func broadcastUserList() {
 	defer hub.mu.RUnlock()
 
 	rows, err := db.Query("SELECT username FROM users")
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	defer rows.Close()
 
 	var list []UserStatus
@@ -144,10 +251,16 @@ func broadcastUserList() {
 }
 
 func saveMessage(msg Message) {
-	if msg.Type == "system" || msg.Type == "online" || msg.Type == "read_sync" { return }
-	_, err := db.Exec("INSERT INTO messages (type, sender, receiver, content, timestamp) VALUES (?, ?, ?, ?, ?)",
-		msg.Type, msg.From, msg.To, msg.Content, msg.Timestamp)
-	if err != nil { log.Println("DB Error:", err) }
+	if msg.Type == "system" || msg.Type == "online" || msg.Type == "read_sync" {
+		return
+	}
+	_, err := db.Exec(
+		"INSERT INTO messages (msg_id, type, sender, receiver, content, timestamp, mentions) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		msg.ID, msg.Type, msg.From, msg.To, msg.Content, msg.Timestamp, mentionsToJSON(msg.Mentions),
+	)
+	if err != nil {
+		log.Println("DB Error:", err)
+	}
 }
 
 func (c *Client) readPump(ctx context.Context) {
@@ -155,18 +268,26 @@ func (c *Client) readPump(ctx context.Context) {
 		hub.unregister <- c
 		c.conn.Close(websocket.StatusNormalClosure, "")
 	}()
+
 	for {
 		_, data, err := c.conn.Read(ctx)
-		if err != nil { return }
+		if err != nil {
+			return
+		}
+
 		var msg Message
-		if err := json.Unmarshal(data, &msg); err != nil { continue }
+		if err := json.Unmarshal(data, &msg); err != nil {
+			continue
+		}
 		msg.Timestamp = time.Now().Unix()
 
 		switch msg.Type {
 		case "nick":
 			nick := strings.TrimSpace(msg.From)
 			pwd := hashPwd(msg.Password)
-			if len(nick) < 2 { continue }
+			if len([]rune(nick)) < 2 {
+				continue
+			}
 
 			hub.mu.Lock()
 			if _, online := hub.nickMap[nick]; online {
@@ -189,56 +310,87 @@ func (c *Client) readPump(ctx context.Context) {
 			hub.nickMap[nick] = c
 			hub.mu.Unlock()
 
-			// 1. 同步该用户的已读时间戳记录
 			var lastReadJson string
 			db.QueryRow("SELECT last_read_at FROM users WHERE username = ?", nick).Scan(&lastReadJson)
 			c.send <- Message{Type: "read_sync", Content: lastReadJson}
 
-			// 2. 拉取历史记录
-			rows, _ := db.Query(`SELECT type, sender, receiver, content, timestamp FROM messages 
-				WHERE type='public' OR (type='private' AND (sender=? OR receiver=?)) 
-				ORDER BY timestamp DESC LIMIT 80`, nick, nick)
+			rows, _ := db.Query(`
+				SELECT msg_id, type, sender, receiver, content, timestamp, mentions
+				FROM messages
+				WHERE type='public' OR (type='private' AND (sender=? OR receiver=?))
+				ORDER BY timestamp DESC, id DESC
+				LIMIT 80
+			`, nick, nick)
+
 			var msgs []Message
 			for rows.Next() {
 				var m Message
-				rows.Scan(&m.Type, &m.From, &m.To, &m.Content, &m.Timestamp)
+				var mentionsRaw string
+				rows.Scan(&m.ID, &m.Type, &m.From, &m.To, &m.Content, &m.Timestamp, &mentionsRaw)
+				m.Mentions = parseMentionsJSON(mentionsRaw)
 				msgs = append([]Message{m}, msgs...)
 			}
 			rows.Close()
-			for _, m := range msgs { c.send <- m }
+
+			for _, m := range msgs {
+				c.send <- m
+			}
 			broadcastUserList()
 
 		case "read_ack":
-			if c.nick == "" { continue }
-			// 处理前端发来的已读确认
+			if c.nick == "" {
+				continue
+			}
+
 			var lastReadMap map[string]int64
 			var rawJson string
 			db.QueryRow("SELECT last_read_at FROM users WHERE username = ?", c.nick).Scan(&rawJson)
-			if rawJson == "" { rawJson = "{}" }
+			if rawJson == "" {
+				rawJson = "{}"
+			}
 			json.Unmarshal([]byte(rawJson), &lastReadMap)
-			if lastReadMap == nil { lastReadMap = make(map[string]int64) }
-			
-			// 记录当前频道/用户的最后阅读时间
+			if lastReadMap == nil {
+				lastReadMap = make(map[string]int64)
+			}
+
 			target := msg.To
-			if target == "" { target = "public" }
+			if target == "" {
+				target = "public"
+			}
 			lastReadMap[target] = time.Now().Unix()
-			
+
 			newJson, _ := json.Marshal(lastReadMap)
 			db.Exec("UPDATE users SET last_read_at = ? WHERE username = ?", string(newJson), c.nick)
 
 		case "public":
-			if c.nick == "" { continue }
+			if c.nick == "" {
+				continue
+			}
+			msg.ID = generateMessageID()
 			msg.From = c.nick
+
+			usernames, err := getAllUsernames()
+			if err == nil {
+				msg.Mentions = parseMentions(msg.Content, usernames, c.nick)
+			} else {
+				msg.Mentions = nil
+			}
+
 			hub.broadcast <- msg
 
 		case "private":
-			if c.nick == "" { continue }
+			if c.nick == "" {
+				continue
+			}
+			msg.ID = generateMessageID()
 			msg.From = c.nick
 			saveMessage(msg)
 			c.send <- msg
+
 			hub.mu.RLock()
 			target, exists := hub.nickMap[msg.To]
 			hub.mu.RUnlock()
+
 			if exists && target != c {
 				target.send <- msg
 			}
@@ -249,14 +401,21 @@ func (c *Client) readPump(ctx context.Context) {
 func (c *Client) writePump(ctx context.Context) {
 	ticker := time.NewTicker(25 * time.Second)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case msg, ok := <-c.send:
-			if !ok { return }
+			if !ok {
+				return
+			}
 			data, _ := json.Marshal(msg)
 			c.conn.Write(ctx, websocket.MessageText, data)
+
 		case <-ticker.C:
-			if c.conn.Ping(ctx) != nil { return }
+			if c.conn.Ping(ctx) != nil {
+				return
+			}
+
 		case <-ctx.Done():
 			return
 		}
@@ -264,22 +423,42 @@ func (c *Client) writePump(ctx context.Context) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	accessPassword = os.Getenv("CHAT_PASSWORD")
-	if accessPassword == "" { accessPassword = "changeme" }
+	if accessPassword == "" {
+		accessPassword = "changeme"
+	}
 	serverPort = os.Getenv("PORT")
-	if serverPort == "" { serverPort = "10699" }
+	if serverPort == "" {
+		serverPort = "10699"
+	}
 
 	db, _ = sql.Open("sqlite3", "./chat.db?_journal_mode=WAL")
 	defer db.Close()
 	db.SetMaxOpenConns(1)
-	
-	// 初始化表结构
-	db.Exec(`CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, last_read_at TEXT DEFAULT '{}')`)
-	db.Exec(`CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, sender TEXT, receiver TEXT, content TEXT, timestamp INTEGER)`)
-	
-	// 尝试为旧数据库添加字段（如果不存在）
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS users (
+		username TEXT PRIMARY KEY,
+		password TEXT,
+		last_read_at TEXT DEFAULT '{}'
+	)`)
+
+	db.Exec(`CREATE TABLE IF NOT EXISTS messages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		msg_id TEXT,
+		type TEXT,
+		sender TEXT,
+		receiver TEXT,
+		content TEXT,
+		timestamp INTEGER,
+		mentions TEXT DEFAULT '[]'
+	)`)
+
 	db.Exec(`ALTER TABLE users ADD COLUMN last_read_at TEXT DEFAULT '{}'`)
-	
+	db.Exec(`ALTER TABLE messages ADD COLUMN msg_id TEXT`)
+	db.Exec(`ALTER TABLE messages ADD COLUMN mentions TEXT DEFAULT '[]'`)
+
 	hub = initHub()
 	go hub.run()
 
@@ -296,7 +475,13 @@ func main() {
 	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			if r.FormValue("password") == accessPassword {
-				http.SetCookie(w, &http.Cookie{Name: "auth", Value: accessPassword, Path: "/", MaxAge: 86400*7, HttpOnly: true})
+				http.SetCookie(w, &http.Cookie{
+					Name:     "auth",
+					Value:    accessPassword,
+					Path:     "/",
+					MaxAge:   86400 * 7,
+					HttpOnly: true,
+				})
 				http.Redirect(w, r, "/", http.StatusSeeOther)
 				return
 			}
@@ -308,10 +493,17 @@ func main() {
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		cookie, _ := r.Cookie("auth")
-		if cookie == nil || cookie.Value != accessPassword { return }
+		if cookie == nil || cookie.Value != accessPassword {
+			return
+		}
+
 		conn, _ := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 		ctx, cancel := context.WithCancel(r.Context())
-		client := &Client{conn: conn, send: make(chan Message, 64), cancel: cancel}
+		client := &Client{
+			conn:   conn,
+			send:   make(chan Message, 64),
+			cancel: cancel,
+		}
 		hub.register <- client
 		go client.writePump(ctx)
 		client.readPump(ctx)
