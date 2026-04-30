@@ -69,6 +69,7 @@ type UserStatus struct {
 type Client struct {
 	conn             *websocket.Conn
 	nick             string
+	inviteCode       string
 	send             chan Message
 	cancel           context.CancelFunc
 	mu               sync.Mutex
@@ -92,10 +93,9 @@ type Hub struct {
 }
 
 var (
-	hub            *Hub
-	db             *sql.DB
-	accessPassword string
-	serverPort     string
+	hub        *Hub
+	db         *sql.DB
+	serverPort string
 )
 
 func initHub() *Hub {
@@ -667,6 +667,11 @@ func (c *Client) handleNick(msg Message) {
 		return
 	}
 
+	if err := bindInviteCodeToNick(c.inviteCode, nick); err != nil {
+		_ = safeSend(c, Message{Type: "system", Content: err.Error()})
+		return
+	}
+
 	hub.mu.Lock()
 	if existing, online := hub.nickMap[nick]; online && existing != c {
 		hub.mu.Unlock()
@@ -1017,6 +1022,111 @@ func loadAllUsersToMemory() error {
 	return nil
 }
 
+func importInviteCodesFromFile(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Println("read invite codes warn:", err)
+		}
+		return
+	}
+
+	lines := strings.Split(string(data), "\n")
+	now := time.Now().Unix()
+	imported := 0
+
+	for _, line := range lines {
+		code := strings.TrimSpace(line)
+		if code == "" || strings.HasPrefix(code, "#") {
+			continue
+		}
+
+		res, err := db.Exec("INSERT OR IGNORE INTO invite_codes(code, created_at) VALUES(?, ?)", code, now)
+		if err != nil {
+			log.Println("import invite code error:", err)
+			continue
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			imported++
+		}
+	}
+
+	if imported > 0 {
+		log.Printf("Imported %d invite code(s)", imported)
+	}
+}
+
+func isInviteCodeValid(code string) bool {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return false
+	}
+
+	var disabled int
+	err := db.QueryRow("SELECT disabled FROM invite_codes WHERE code = ?", code).Scan(&disabled)
+	if err != nil {
+		return false
+	}
+	return disabled == 0
+}
+
+func getInviteCodeFromRequest(r *http.Request) (string, bool) {
+	cookie, err := r.Cookie("invite_code")
+	if err != nil || cookie == nil {
+		return "", false
+	}
+
+	code := strings.TrimSpace(cookie.Value)
+	if !isInviteCodeValid(code) {
+		return "", false
+	}
+	return code, true
+}
+
+func bindInviteCodeToNick(code, nick string) error {
+	code = strings.TrimSpace(code)
+	nick = strings.TrimSpace(nick)
+	if code == "" || nick == "" {
+		return errors.New("邀请码无效")
+	}
+
+	var usedBy string
+	var disabled int
+	err := db.QueryRow("SELECT used_by, disabled FROM invite_codes WHERE code = ?", code).Scan(&usedBy, &disabled)
+	if err != nil {
+		return errors.New("邀请码无效")
+	}
+	if disabled != 0 {
+		return errors.New("邀请码已被禁用")
+	}
+	if usedBy != "" && usedBy != nick {
+		return errors.New("当前邀请码已绑定其他昵称")
+	}
+	var existingCode string
+	err = db.QueryRow("SELECT code FROM invite_codes WHERE used_by = ? AND code <> ? AND disabled = 0 LIMIT 1", nick, code).Scan(&existingCode)
+	if err == nil {
+		return errors.New("该昵称已绑定其他邀请码")
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if usedBy == nick {
+		return nil
+	}
+
+	res, err := db.Exec(
+		"UPDATE invite_codes SET used_by = ?, used_at = ? WHERE code = ? AND (used_by = '' OR used_by IS NULL)",
+		nick, time.Now().Unix(), code,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errors.New("当前邀请码已绑定其他昵称")
+	}
+	return nil
+}
+
 func setupDatabase() error {
 	var err error
 	db, err = sql.Open("sqlite3", "./chat.db?_journal_mode=WAL&_busy_timeout=10000")
@@ -1058,6 +1168,13 @@ func setupDatabase() error {
 			timestamp INTEGER,
 			mentions TEXT DEFAULT '[]'
 		)`,
+		`CREATE TABLE IF NOT EXISTS invite_codes (
+			code TEXT PRIMARY KEY,
+			used_by TEXT DEFAULT '',
+			used_at INTEGER DEFAULT 0,
+			created_at INTEGER NOT NULL,
+			disabled INTEGER DEFAULT 0
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(timestamp DESC, id DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(type, sender, receiver, timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_msgid ON messages(msg_id)`,
@@ -1080,10 +1197,6 @@ func setupDatabase() error {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	accessPassword = os.Getenv("CHAT_PASSWORD")
-	if accessPassword == "" {
-		accessPassword = "changeme"
-	}
 	serverPort = os.Getenv("PORT")
 	if serverPort == "" {
 		serverPort = "10699"
@@ -1096,6 +1209,8 @@ func main() {
 	}
 	defer db.Close()
 
+	importInviteCodesFromFile("./invite_codes.txt")
+
 	if err := loadAllUsersToMemory(); err != nil {
 		log.Println("load users warn:", err)
 	}
@@ -1106,8 +1221,7 @@ func main() {
 	go hub.run()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("auth")
-		if err != nil || cookie.Value != accessPassword {
+		if _, ok := getInviteCodeFromRequest(r); !ok {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -1117,10 +1231,11 @@ func main() {
 
 	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
-			if r.FormValue("password") == accessPassword {
+			inviteCode := strings.TrimSpace(r.FormValue("invite_code"))
+			if isInviteCodeValid(inviteCode) {
 				http.SetCookie(w, &http.Cookie{
-					Name:     "auth",
-					Value:    accessPassword,
+					Name:     "invite_code",
+					Value:    inviteCode,
 					Path:     "/",
 					MaxAge:   86400 * 7,
 					HttpOnly: true,
@@ -1131,12 +1246,17 @@ func main() {
 			http.Redirect(w, r, "/login?error=1", http.StatusSeeOther)
 			return
 		}
-		_, _ = w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1d24;color:#fff}form{background:#2a2d36;padding:30px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.5)}input{display:block;width:100%;margin:15px 0;padding:12px;border-radius:8px;border:none}button{width:100%;padding:12px;background:#6c63ff;color:#fff;border:none;border-radius:8px;cursor:pointer}</style></head><body><form method="POST"><h2>宇宙公司聊天室</h2><button type="submit">登陆</button><input type="password" name="password" placeholder="请输入聊天室密码" required autofocus></form></body></html>`))
+
+		errorText := ""
+		if r.URL.Query().Get("error") == "1" {
+			errorText = `<p style="color:#ff7875;font-size:12px;margin:0 0 10px 0;">邀请码无效或已被禁用</p>`
+		}
+		_, _ = w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Login</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1d24;color:#fff}form{background:#2a2d36;padding:30px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.5)}input{display:block;width:100%;margin:15px 0;padding:12px;border-radius:8px;border:none}button{width:100%;padding:12px;background:#6c63ff;color:#fff;border:none;border-radius:8px;cursor:pointer}</style></head><body><form method="POST"><h2>宇宙公司聊天室</h2>` + errorText + `<input type="text" name="invite_code" placeholder="请输入邀请码" required autofocus><button type="submit">进入聊天室</button></form></body></html>`))
 	})
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		cookie, _ := r.Cookie("auth")
-		if cookie == nil || cookie.Value != accessPassword {
+		inviteCode, ok := getInviteCodeFromRequest(r)
+		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -1151,6 +1271,7 @@ func main() {
 		ctx, cancel := context.WithCancel(r.Context())
 		client := &Client{
 			conn:           conn,
+			inviteCode:     inviteCode,
 			send:           make(chan Message, sendQueueSize),
 			cancel:         cancel,
 			lastReadMap:    make(map[string]int64),
