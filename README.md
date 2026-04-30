@@ -41,7 +41,7 @@ ps aux | grep chatroom #检查是否结束进程。如果只看到 grep 这一�
 rm chat.db #清空历史/重置密码
 tail -f chat.log #查看运行日志
 
-邀请码系统维护：
+邀请码系统维护：保证invite_codes.txt与chatroom在同一目录下
 （1）新增邀请码
 pkill chatroom #结束进程
 vi invite_codes.txt #打开邀请码文件
