@@ -31,7 +31,6 @@
 scp ./chatroom -P 22 root@你的VPS_IP:/root/  #上传文件
 apk add --no-cache musl libc6-compat #配置环境
 chmod +x /root/chatroom #赋权
-export CHAT_PASSWORD="你的密码"
 export PORT=你的端口号
 ./chatroom #测试
 nohup /root/chatroom > /root/chat.log 2>&1 & #后台运行
