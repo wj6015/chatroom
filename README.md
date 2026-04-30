@@ -40,3 +40,47 @@ pkill -9 chatroom #强力结束进程
 ps aux | grep chatroom #检查是否结束进程。如果只看到 grep 这一行，说明 chatroom 已经消失了
 rm chat.db #清空历史/重置密码
 tail -f chat.log #查看运行日志
+
+邀请码系统维护：
+（1）新增邀请码
+pkill chatroom #结束进程
+vi invite_codes.txt #打开邀请码文件
+例：NEW-USER-001 #新增一行
+ ./chatroom #重启
+
+（2）禁用邀请码
+sqlite3 chat.db "
+UPDATE invite_codes
+SET disabled = 1
+WHERE code = 'NEW-USER-001';
+"
+
+（3）删除邀请码
+sqlite3 chat.db "
+DELETE FROM invite_codes
+WHERE code = 'NEW-USER-001';
+"
+
+（4）查看邀请码状态
+sqlite3 chat.db "
+SELECT
+  code,
+  used_by,
+  datetime(used_at, 'unixepoch', 'localtime') AS used_time,
+  disabled
+FROM invite_codes;
+"
+
+（5）查看所有表
+sqlite3 chat.db ".tables"
+
+（6）查看 invite_codes 表结构
+sqlite3 chat.db ".schema invite_codes"
+
+（7）查看 users
+sqlite3 chat.db "
+SELECT username FROM users;
+"
+
+
+
