@@ -1791,6 +1791,7 @@ function connectWs(isReconnect = false) {
     } else if (msg.type === 'unread_sync') {
       unreadCounts = msg.unread_map || {};
       updateUserList();
+      
     } else if (msg.type === 'history_page') {
       const chat = msg.to || 'public';
       const messages = Array.isArray(msg.messages) ? msg.messages : [];
@@ -1807,12 +1808,7 @@ function connectWs(isReconnect = false) {
         prevTop = messagesWrap.scrollTop;
       }
 
-      // 情况1：本次加载批次里是否还包含“原本未读”的消息
       const latestUnreadMsg = findLatestUnreadMessageInBatch(chat, messages);
-
-      // 情况2：如果已经跨过未读边界，后续继续加载的都是已读历史，
-      // 则应该把“这批新加载内容中的最新已读消息”停在输入框上方
-      const latestLoadedMsg = findLatestMessageInBatch(messages);
 
       if (messages.length) {
         dedupeAndInsertMessages(chat, messages, true);
@@ -1822,17 +1818,12 @@ function connectWs(isReconnect = false) {
       if (isCurrentChat) {
         renderMessages();
 
-        // 优先级 1：本批次里还有未读消息 -> 定位到本批“最新未读消息”
+        // 仅在“本次新加载批次中仍有未读消息”时，
+        // 自动停到最新未读消息附近。
         if (latestUnreadMsg && latestUnreadMsg.id) {
           scrollMessageNearInputById(latestUnreadMsg.id);
-        }
-        // 优先级 2：已经没有未读了，并且这个会话已经跨过未读边界
-        // -> 定位到本批“最新已读消息”
-        else if (unreadBoundaryShown[chat] && latestLoadedMsg && latestLoadedMsg.id) {
-          scrollMessageNearInputById(latestLoadedMsg.id);
-        }
-        // 其他情况：保持原有相对位置
-        else {
+        } else {
+          // 纯已读历史翻页：保持原相对位置，继续自然往上阅读
           requestAnimationFrame(() => {
             const newHeight = messagesWrap.scrollHeight;
             messagesWrap.scrollTop = Math.max(0, newHeight - prevHeight + prevTop);
