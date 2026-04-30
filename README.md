@@ -47,7 +47,7 @@ vi invite_codes.txt #打开邀请码文件
 例：NEW-USER-001 #新增一行
  ./chatroom #重启
 
-（2）禁用邀请码
+（2）禁用邀请码   (如果报错ash: sqlite3: not found 或 command not found: sqlite3 说明sqlite3没安装。 请用apk add --no-cache sqlite进行安装）
 sqlite3 chat.db "
 UPDATE invite_codes
 SET disabled = 1
