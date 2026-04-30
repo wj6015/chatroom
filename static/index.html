@@ -1635,7 +1635,9 @@ function insertBoundaryDividerIfNeeded(chat) {
   messagesWrap.insertBefore(divider, info.targetRow);
 }
 
-function renderMessages() {
+function renderMessages(options = {}) {
+  const shouldScrollBottom = options.scrollBottom !== false;
+
   messagesWrap.innerHTML = '';
   publicMsgIndex.clear();
 
@@ -1646,7 +1648,10 @@ function renderMessages() {
 
   trimMessageDom();
   insertBoundaryDividerIfNeeded(currentChat);
-  scrollBottom();
+
+  if (shouldScrollBottom) {
+    scrollBottom();
+  }
 }
 
 function checkUnreadBoundaryCross(chat, loadedMessages) {
@@ -1713,7 +1718,7 @@ function loadMoreHistory() {
   maybeRecordUnreadBoundary(currentChat);
 
   state.loading = true;
-  renderMessages();
+  renderMessages({ scrollBottom: false });
 
   const payload = {
     type: 'load_more',
@@ -1816,7 +1821,7 @@ function connectWs(isReconnect = false) {
       }
 
       if (isCurrentChat) {
-        renderMessages();
+        renderMessages({ scrollBottom: false });
 
         // 仅在“本次新加载批次中仍有未读消息”时，
         // 自动停到最新未读消息附近。
